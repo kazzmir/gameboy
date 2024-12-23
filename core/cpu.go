@@ -14,8 +14,9 @@ type CPU struct {
 
 func DecodeInstruction(instruction byte) string {
     block := instruction >> 6
+    // check top 2 bits first
     switch block {
-        case 0:
+        case 0b00:
             switch instruction & 0b1111 {
                 case 0b0000: return "NOP"
                 case 0b0001: return "ld r16, imm16"
@@ -48,9 +49,9 @@ func DecodeInstruction(instruction byte) string {
                 case 0b110: return "ld r8, imm8"
             }
 
-        case 1:
-        case 2:
-        case 3:
+        case 0b01:
+        case 0b10:
+        case 0b11:
     }
 
     return "unknown"
