@@ -1,8 +1,13 @@
 package core
 
+import (
+    "log"
+)
+
 type CPU struct {
     // accumulator and flags
-    AF uint16
+    A uint8
+    F uint8
     BC uint16
     DE uint16
     HL uint16
@@ -10,9 +15,47 @@ type CPU struct {
     SP uint16
     // program counter
     PC uint16
+    Cycles uint64
 }
 
-func DecodeInstruction(instruction byte) string {
+type Opcode int
+const (
+    Nop Opcode = iota
+    RRCA Opcode = iota
+)
+
+type Instruction struct {
+    Opcode Opcode
+}
+
+func carryFlag(value uint8) uint8 {
+    return value << 4
+}
+
+func RotateRight(value uint8) (uint8, uint8) {
+    carry := value & 0b1
+    value = value >> 1
+    value = value | (carry << 7)
+    return value, carry
+}
+
+func (cpu *CPU) Execute(instruction Instruction) {
+    switch instruction.Opcode {
+        case Nop:
+            cpu.Cycles += 1
+        case RRCA:
+            cpu.Cycles += 1
+            newA, carry := RotateRight(cpu.A)
+            cpu.A = newA
+            cpu.F = carryFlag(carry)
+        default:
+            log.Printf("Execute error: unknown opcode %v", instruction.Opcode)
+    }
+}
+
+// instructions should be at least 3 bytes long for 'opcode immediate immediate'
+func DecodeInstruction(instructions []byte) string {
+    instruction := instructions[0]
     block := instruction >> 6
     // check top 2 bits first
     switch block {
