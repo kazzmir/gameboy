@@ -28,6 +28,11 @@ const (
     LoadHLImmediate
     LoadSPImmediate
 
+    StoreBCMemA
+    StoreDEMemA
+    StoreHLMemA
+    StoreSPMemA
+
     Unknown
 )
 
@@ -56,6 +61,10 @@ func RotateRight(value uint8) (uint8, uint8) {
     return value, carry
 }
 
+func (cpu *CPU) StoreMemory(address uint16, value uint8) {
+    // TODO
+}
+
 func (cpu *CPU) Execute(instruction Instruction) {
     switch instruction.Opcode {
         case Nop:
@@ -77,6 +86,18 @@ func (cpu *CPU) Execute(instruction Instruction) {
         case LoadSPImmediate:
             cpu.Cycles += 3
             cpu.SP = instruction.Immediate16
+        case StoreBCMemA:
+            cpu.Cycles += 2
+            cpu.StoreMemory(cpu.BC, cpu.A)
+        case StoreDEMemA:
+            cpu.Cycles += 2
+            cpu.StoreMemory(cpu.DE, cpu.A)
+        case StoreHLMemA:
+            cpu.Cycles += 2
+            cpu.StoreMemory(cpu.HL, cpu.A)
+        case StoreSPMemA:
+            cpu.Cycles += 2
+            cpu.StoreMemory(cpu.SP, cpu.A)
         default:
             log.Printf("Execute error: unknown opcode %v", instruction.Opcode)
     }
@@ -97,6 +118,17 @@ func makeLoadR16Imm16Instruction(r16 R16, immediate uint16) Instruction {
     return Instruction{Opcode: Unknown}
 }
 
+func makeStoreR16MemAInstruction(r16 R16) Instruction {
+    switch r16 {
+        case R16BC: return Instruction{Opcode: StoreBCMemA}
+        case R16DE: return Instruction{Opcode: StoreDEMemA}
+        case R16HL: return Instruction{Opcode: StoreHLMemA}
+        case R16SP: return Instruction{Opcode: StoreSPMemA}
+    }
+
+    return Instruction{Opcode: Unknown}
+}
+
 // instructions should be at least 3 bytes long for 'opcode immediate immediate'
 func DecodeInstruction(instructions []byte) (Instruction, uint8) {
     instruction := instructions[0]
@@ -109,8 +141,12 @@ func DecodeInstruction(instructions []byte) (Instruction, uint8) {
                 case 0b0001:
                     r16 := (instruction >> 4) & 0b11
                     return makeLoadR16Imm16Instruction(R16(r16), makeImm16(instructions[1:])), 3
+                case 0b0010:
+                    //return "ld [r16mem], a"
+                    r16 := R16((instruction >> 4) & 0b11)
+                    return makeStoreR16MemAInstruction(r16), 1
+
                 /*
-                case 0b0010: return "ld [r16mem], a"
                 case 0b1010: return "ld a, [r16mem]"
                 case 0b1000: return "ld [imm16], sp"
                 case 0b0011: return "inc r16"
