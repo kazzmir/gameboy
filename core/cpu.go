@@ -58,6 +58,8 @@ const (
     RLCA
     RLA
 
+    DAA
+
     Unknown
 )
 
@@ -265,6 +267,14 @@ func (cpu *CPU) Execute(instruction Instruction) {
             cpu.SetFlagN(0)
             cpu.SetFlagC(newCarry)
 
+        case DAA:
+            // BCD fixup after add/subtract
+
+            // https://blog.ollien.com/posts/gb-daa/
+            // https://ehaskins.com/2018-01-30%20Z80%20DAA/
+            cpu.Cycles += 1
+            log.Printf("DAA not implemented")
+
         default:
             log.Printf("Execute error: unknown opcode %v", instruction.Opcode)
     }
@@ -391,8 +401,8 @@ func DecodeInstruction(instructions []byte) (Instruction, uint8) {
                     switch instruction >> 4 {
                         case 0b0000: return Instruction{Opcode: RLCA}, 1
                         case 0b0001: return Instruction{Opcode: RLA}, 1
+                        case 0b0010: return Instruction{Opcode: DAA}, 1
                         /*
-                        case 0b0010: return "daa"
                         case 0b0011: return "scf"
                         */
                     }
