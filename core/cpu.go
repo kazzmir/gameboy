@@ -21,11 +21,15 @@ type CPU struct {
 type Opcode int
 const (
     Nop Opcode = iota
-    RRCA Opcode = iota
+    RRCA
+
+    Unknown
 )
 
 type Instruction struct {
     Opcode Opcode
+    Immediate8 uint8
+    Immediate16 uint16
 }
 
 func carryFlag(value uint8) uint8 {
@@ -54,14 +58,15 @@ func (cpu *CPU) Execute(instruction Instruction) {
 }
 
 // instructions should be at least 3 bytes long for 'opcode immediate immediate'
-func DecodeInstruction(instructions []byte) string {
+func DecodeInstruction(instructions []byte) (Instruction, uint8) {
     instruction := instructions[0]
     block := instruction >> 6
     // check top 2 bits first
     switch block {
         case 0b00:
             switch instruction & 0b1111 {
-                case 0b0000: return "NOP"
+                case 0b0000: return Instruction{Opcode: Nop}, 1
+                /*
                 case 0b0001: return "ld r16, imm16"
                 case 0b0010: return "ld [r16mem], a"
                 case 0b1010: return "ld a, [r16mem]"
@@ -84,8 +89,10 @@ func DecodeInstruction(instructions []byte) string {
                         case 0b0010: return "cpl"
                         case 0b0011: return "ccf"
                     }
+                    */
             }
 
+            /*
             switch instruction & 0b111 {
                 case 0b000:
                     if instruction == 0b00011000 {
@@ -104,7 +111,9 @@ func DecodeInstruction(instructions []byte) string {
                 case 0b101: return "dec r8"
                 case 0b110: return "ld r8, imm8"
             }
+            */
 
+            /*
         case 0b01:
             if instruction & 0b11111 == 0b110110 {
                 return "halt"
@@ -177,7 +186,8 @@ func DecodeInstruction(instructions []byte) string {
             if instruction == 0xcb {
                 // special prefix instruction
             }
+            */
     }
 
-    return "unknown"
+    return Instruction{Opcode: Unknown}, 1
 }
