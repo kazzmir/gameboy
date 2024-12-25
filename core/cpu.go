@@ -60,6 +60,8 @@ const (
 
     DAA
 
+    SCF
+
     Unknown
 )
 
@@ -275,6 +277,10 @@ func (cpu *CPU) Execute(instruction Instruction) {
             cpu.Cycles += 1
             log.Printf("DAA not implemented")
 
+        case SCF:
+            cpu.Cycles += 1
+            cpu.SetFlagC(1)
+
         default:
             log.Printf("Execute error: unknown opcode %v", instruction.Opcode)
     }
@@ -402,9 +408,7 @@ func DecodeInstruction(instructions []byte) (Instruction, uint8) {
                         case 0b0000: return Instruction{Opcode: RLCA}, 1
                         case 0b0001: return Instruction{Opcode: RLA}, 1
                         case 0b0010: return Instruction{Opcode: DAA}, 1
-                        /*
-                        case 0b0011: return "scf"
-                        */
+                        case 0b0011: return Instruction{Opcode: SCF}, 1
                     }
 
                 /*
