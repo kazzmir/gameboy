@@ -45,6 +45,11 @@ const (
     IncHL
     IncSP
 
+    DecBC
+    DecDE
+    DecHL
+    DecSP
+
     Unknown
 )
 
@@ -149,6 +154,19 @@ func (cpu *CPU) Execute(instruction Instruction) {
             cpu.Cycles += 2
             cpu.SP += 1
 
+        case DecBC:
+            cpu.Cycles += 2
+            cpu.BC -= 1
+        case DecDE:
+            cpu.Cycles += 2
+            cpu.DE -= 1
+        case DecHL:
+            cpu.Cycles += 2
+            cpu.HL -= 1
+        case DecSP:
+            cpu.Cycles += 2
+            cpu.SP -= 1
+
         default:
             log.Printf("Execute error: unknown opcode %v", instruction.Opcode)
     }
@@ -206,6 +224,17 @@ func makeIncInstruction(r16 R16) Instruction {
     return Instruction{Opcode: Unknown}
 }
 
+func makeDecInstruction(r16 R16) Instruction {
+    switch r16 {
+        case R16BC: return Instruction{Opcode: DecBC}
+        case R16DE: return Instruction{Opcode: DecDE}
+        case R16HL: return Instruction{Opcode: DecHL}
+        case R16SP: return Instruction{Opcode: DecSP}
+    }
+
+    return Instruction{Opcode: Unknown}
+}
+
 // instructions should be at least 3 bytes long for 'opcode immediate immediate'
 func DecodeInstruction(instructions []byte) (Instruction, uint8) {
     instruction := instructions[0]
@@ -239,8 +268,11 @@ func DecodeInstruction(instructions []byte) (Instruction, uint8) {
 
                     // return "inc r16"
 
+                case 0b1011:
+                    r16 := R16((instruction >> 4) & 0b11)
+                    return makeDecInstruction(r16), 1
+
                 /*
-                case 0b1011: return "dec r16"
                 case 0b1001: return "add hl, r16"
 
                 case 0b0111:
