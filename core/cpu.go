@@ -50,6 +50,11 @@ const (
     DecHL
     DecSP
 
+    AddHLBC
+    AddHLDE
+    AddHLHL
+    AddHLSP
+
     Unknown
 )
 
@@ -67,8 +72,28 @@ type Instruction struct {
     Immediate16 uint16
 }
 
-func carryFlag(value uint8) uint8 {
-    return value << 4
+func setBit(value uint8, bit uint8, set uint8) uint8 {
+    set &= 0b1
+    if set == 0 {
+        return value & ^(1 << bit)
+    }
+    return value | (1 << bit)
+}
+
+func (cpu *CPU) SetFlagC(value uint8) {
+    cpu.F = setBit(cpu.F, 4, value)
+}
+
+func (cpu *CPU) SetFlagH(value uint8) {
+    cpu.F = setBit(cpu.F, 5, value)
+}
+
+func (cpu *CPU) SetFlagN(value uint8) {
+    cpu.F = setBit(cpu.F, 6, value)
+}
+
+func (cpu *CPU) SetFlagZ(value uint8) {
+    cpu.F = setBit(cpu.F, 7, value)
 }
 
 func RotateRight(value uint8) (uint8, uint8) {
@@ -95,7 +120,10 @@ func (cpu *CPU) Execute(instruction Instruction) {
             cpu.Cycles += 1
             newA, carry := RotateRight(cpu.A)
             cpu.A = newA
-            cpu.F = carryFlag(carry)
+            cpu.SetFlagZ(0)
+            cpu.SetFlagH(0)
+            cpu.SetFlagN(0)
+            cpu.SetFlagC(carry)
         case LoadBCImmediate:
             cpu.Cycles += 3
             cpu.BC = instruction.Immediate16
@@ -167,6 +195,28 @@ func (cpu *CPU) Execute(instruction Instruction) {
             cpu.Cycles += 2
             cpu.SP -= 1
 
+        case AddHLBC:
+            cpu.Cycles += 2
+
+            carry := uint32(cpu.HL) + uint32(cpu.BC) > 0xffff
+
+            halfCarry := ((cpu.HL & 0xfff) + (cpu.BC & 0xfff)) & 0x1000 == 0x1000
+
+            cpu.HL += cpu.BC
+            cpu.SetFlagN(0)
+
+            if halfCarry {
+                cpu.SetFlagH(1)
+            } else {
+                cpu.SetFlagH(0)
+            }
+
+            if carry {
+                cpu.SetFlagC(1)
+            } else {
+                cpu.SetFlagC(0)
+            }
+
         default:
             log.Printf("Execute error: unknown opcode %v", instruction.Opcode)
     }
@@ -235,6 +285,17 @@ func makeDecInstruction(r16 R16) Instruction {
     return Instruction{Opcode: Unknown}
 }
 
+func makeAddHLR16Instruction(r16 R16) Instruction {
+    switch r16 {
+        case R16BC: return Instruction{Opcode: AddHLBC}
+        case R16DE: return Instruction{Opcode: AddHLDE}
+        case R16HL: return Instruction{Opcode: AddHLHL}
+        case R16SP: return Instruction{Opcode: AddHLSP}
+    }
+
+    return Instruction{Opcode: Unknown}
+}
+
 // instructions should be at least 3 bytes long for 'opcode immediate immediate'
 func DecodeInstruction(instructions []byte) (Instruction, uint8) {
     instruction := instructions[0]
@@ -272,8 +333,13 @@ func DecodeInstruction(instructions []byte) (Instruction, uint8) {
                     r16 := R16((instruction >> 4) & 0b11)
                     return makeDecInstruction(r16), 1
 
+                case 0b1001:
+                    r16 := R16((instruction >> 4) & 0b11)
+                    return makeAddHLR16Instruction(r16), 1
+
+                    // return "add hl, r16"
+
                 /*
-                case 0b1001: return "add hl, r16"
 
                 case 0b0111:
                     switch instruction >> 4 {
