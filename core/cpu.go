@@ -55,6 +55,9 @@ const (
     AddHLHL
     AddHLSP
 
+    RLCA
+    RLA
+
     Unknown
 )
 
@@ -84,6 +87,10 @@ func (cpu *CPU) SetFlagC(value uint8) {
     cpu.F = setBit(cpu.F, 4, value)
 }
 
+func (cpu *CPU) GetFlagC() uint8 {
+    return (cpu.F >> 4) & 0b1
+}
+
 func (cpu *CPU) SetFlagH(value uint8) {
     cpu.F = setBit(cpu.F, 5, value)
 }
@@ -103,6 +110,13 @@ func RotateRight(value uint8) (uint8, uint8) {
     return value, carry
 }
 
+func RotateLeft(value uint8) (uint8, uint8) {
+    carry := (value >> 7) & 0b1
+    value = value << 1
+    value = value | carry
+    return value, carry
+}
+
 func (cpu *CPU) StoreMemory(address uint16, value uint8) {
     // TODO
 }
@@ -110,6 +124,27 @@ func (cpu *CPU) StoreMemory(address uint16, value uint8) {
 func (cpu *CPU) LoadMemory8(address uint16) uint8 {
     // TODO
     return 0
+}
+
+func (cpu *CPU) AddHL(value uint16) {
+    carry := uint32(cpu.HL) + uint32(value) > 0xffff
+
+    halfCarry := ((cpu.HL & 0xfff) + (value & 0xfff)) & 0x1000 == 0x1000
+
+    cpu.HL += value
+    cpu.SetFlagN(0)
+
+    if halfCarry {
+        cpu.SetFlagH(1)
+    } else {
+        cpu.SetFlagH(0)
+    }
+
+    if carry {
+        cpu.SetFlagC(1)
+    } else {
+        cpu.SetFlagC(0)
+    }
 }
 
 func (cpu *CPU) Execute(instruction Instruction) {
@@ -197,25 +232,38 @@ func (cpu *CPU) Execute(instruction Instruction) {
 
         case AddHLBC:
             cpu.Cycles += 2
+            cpu.AddHL(cpu.BC)
+        case AddHLDE:
+            cpu.Cycles += 2
+            cpu.AddHL(cpu.DE)
+        case AddHLHL:
+            cpu.Cycles += 2
+            cpu.AddHL(cpu.HL)
+        case AddHLSP:
+            cpu.Cycles += 2
+            cpu.AddHL(cpu.SP)
 
-            carry := uint32(cpu.HL) + uint32(cpu.BC) > 0xffff
+        case RLCA:
+            cpu.Cycles += 1
 
-            halfCarry := ((cpu.HL & 0xfff) + (cpu.BC & 0xfff)) & 0x1000 == 0x1000
-
-            cpu.HL += cpu.BC
+            newA, carry := RotateLeft(cpu.A)
+            cpu.A = newA
+            cpu.SetFlagZ(0)
+            cpu.SetFlagH(0)
             cpu.SetFlagN(0)
+            cpu.SetFlagC(carry)
 
-            if halfCarry {
-                cpu.SetFlagH(1)
-            } else {
-                cpu.SetFlagH(0)
-            }
+        case RLA:
+            cpu.Cycles += 1
 
-            if carry {
-                cpu.SetFlagC(1)
-            } else {
-                cpu.SetFlagC(0)
-            }
+            oldCarry := cpu.GetFlagC()
+            newCarry := (cpu.A >> 7) & 0b1
+            cpu.A = (cpu.A << 1) | oldCarry
+
+            cpu.SetFlagZ(0)
+            cpu.SetFlagH(0)
+            cpu.SetFlagN(0)
+            cpu.SetFlagC(newCarry)
 
         default:
             log.Printf("Execute error: unknown opcode %v", instruction.Opcode)
@@ -339,15 +387,18 @@ func DecodeInstruction(instructions []byte) (Instruction, uint8) {
 
                     // return "add hl, r16"
 
-                /*
-
                 case 0b0111:
                     switch instruction >> 4 {
-                        case 0b0000: return "rlca"
-                        case 0b0001: return "rla"
+                        case 0b0000: return Instruction{Opcode: RLCA}, 1
+                        case 0b0001: return Instruction{Opcode: RLA}, 1
+                        /*
                         case 0b0010: return "daa"
                         case 0b0011: return "scf"
+                        */
                     }
+
+                /*
+
                 case 0b1111: 
                     switch instruction >> 4 {
                         case 0b0000: return "rrca"
