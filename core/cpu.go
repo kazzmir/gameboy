@@ -38,6 +38,8 @@ const (
     LoadAMemHL
     LoadAMemSP
 
+    StoreSPMem16
+
     Unknown
 )
 
@@ -120,12 +122,24 @@ func (cpu *CPU) Execute(instruction Instruction) {
         case LoadAMemSP:
             cpu.Cycles += 2
             cpu.A = cpu.LoadMemory8(cpu.SP)
+        case StoreSPMem16:
+            cpu.Cycles += 5
+
+            value1 := uint8(cpu.SP & 0xff)
+            value2 := uint8((cpu.SP >> 8) & 0xff)
+
+            cpu.StoreMemory(instruction.Immediate16, value1)
+            cpu.StoreMemory(instruction.Immediate16+1, value2)
         default:
             log.Printf("Execute error: unknown opcode %v", instruction.Opcode)
     }
 }
 
+// little-endian 16-bit immediate
 func makeImm16(data []byte) uint16 {
+    if len(data) < 2 {
+        panic("makeImm16: data too short")
+    }
     return uint16(data[0]) | (uint16(data[1]) << 8)
 }
 
@@ -183,8 +197,13 @@ func DecodeInstruction(instructions []byte) (Instruction, uint8) {
                     return makeLoadAFromR16MemInstruction(r16), 1
                     //return "ld a, [r16mem]"
 
+                case 0b1000:
+                    immediate := makeImm16(instructions[1:])
+                    return Instruction{Opcode: StoreSPMem16, Immediate16: immediate}, 3
+
+                    //return "ld [imm16], sp"
+
                 /*
-                case 0b1000: return "ld [imm16], sp"
                 case 0b0011: return "inc r16"
                 case 0b1011: return "dec r16"
                 case 0b1001: return "add hl, r16"
