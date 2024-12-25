@@ -40,6 +40,11 @@ const (
 
     StoreSPMem16
 
+    IncBC
+    IncDE
+    IncHL
+    IncSP
+
     Unknown
 )
 
@@ -130,6 +135,20 @@ func (cpu *CPU) Execute(instruction Instruction) {
 
             cpu.StoreMemory(instruction.Immediate16, value1)
             cpu.StoreMemory(instruction.Immediate16+1, value2)
+
+        case IncBC:
+            cpu.Cycles += 2
+            cpu.BC += 1
+        case IncDE:
+            cpu.Cycles += 2
+            cpu.DE += 1
+        case IncHL:
+            cpu.Cycles += 2
+            cpu.HL += 1
+        case IncSP:
+            cpu.Cycles += 2
+            cpu.SP += 1
+
         default:
             log.Printf("Execute error: unknown opcode %v", instruction.Opcode)
     }
@@ -176,6 +195,17 @@ func makeLoadAFromR16MemInstruction(r16 R16) Instruction {
     return Instruction{Opcode: Unknown}
 }
 
+func makeIncInstruction(r16 R16) Instruction {
+    switch r16 {
+        case R16BC: return Instruction{Opcode: IncBC}
+        case R16DE: return Instruction{Opcode: IncDE}
+        case R16HL: return Instruction{Opcode: IncHL}
+        case R16SP: return Instruction{Opcode: IncSP}
+    }
+
+    return Instruction{Opcode: Unknown}
+}
+
 // instructions should be at least 3 bytes long for 'opcode immediate immediate'
 func DecodeInstruction(instructions []byte) (Instruction, uint8) {
     instruction := instructions[0]
@@ -203,8 +233,13 @@ func DecodeInstruction(instructions []byte) (Instruction, uint8) {
 
                     //return "ld [imm16], sp"
 
+                case 0b0011:
+                    r16 := R16((instruction >> 4) & 0b11)
+                    return makeIncInstruction(r16), 1
+
+                    // return "inc r16"
+
                 /*
-                case 0b0011: return "inc r16"
                 case 0b1011: return "dec r16"
                 case 0b1001: return "add hl, r16"
 
