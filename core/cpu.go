@@ -16,6 +16,8 @@ type CPU struct {
     // program counter
     PC uint16
     Cycles uint64
+
+    Stopped bool
 }
 
 type Opcode int
@@ -68,6 +70,13 @@ const (
 
     JR
 
+    JrNz
+    JrZ
+    JrNc
+    JrC
+
+    Stop
+
     Unknown
 )
 
@@ -99,6 +108,10 @@ func (cpu *CPU) SetFlagC(value uint8) {
 
 func (cpu *CPU) GetFlagC() uint8 {
     return (cpu.F >> 4) & 0b1
+}
+
+func (cpu *CPU) GetFlagZ() uint8 {
+    return (cpu.F >> 7) & 0b1
 }
 
 func (cpu *CPU) SetFlagH(value uint8) {
@@ -211,6 +224,39 @@ func (cpu *CPU) Execute(instruction Instruction) {
             offset := int8(instruction.Immediate8)
             cpu.PC = uint16(int32(cpu.PC) + int32(offset) + 2)
 
+        case JrNz:
+            if cpu.GetFlagZ() != 0 {
+                cpu.Cycles += 3
+                offset := int8(instruction.Immediate8)
+                cpu.PC = uint16(int32(cpu.PC) + int32(offset) + 2)
+            } else {
+                cpu.Cycles += 2
+            }
+        case JrZ:
+            if cpu.GetFlagZ() == 0 {
+                cpu.Cycles += 3
+                offset := int8(instruction.Immediate8)
+                cpu.PC = uint16(int32(cpu.PC) + int32(offset) + 2)
+            } else {
+                cpu.Cycles += 2
+            }
+        case JrNc:
+            if cpu.GetFlagC() != 0 {
+                cpu.Cycles += 3
+                offset := int8(instruction.Immediate8)
+                cpu.PC = uint16(int32(cpu.PC) + int32(offset) + 2)
+            } else {
+                cpu.Cycles += 2
+            }
+        case JrC:
+            if cpu.GetFlagC() == 0 {
+                cpu.Cycles += 3
+                offset := int8(instruction.Immediate8)
+                cpu.PC = uint16(int32(cpu.PC) + int32(offset) + 2)
+            } else {
+                cpu.Cycles += 2
+            }
+
         case IncBC:
             cpu.Cycles += 2
             cpu.BC += 1
@@ -303,6 +349,8 @@ func (cpu *CPU) Execute(instruction Instruction) {
             cpu.SetFlagN(0)
             cpu.SetFlagC(newCarry)
 
+        case Stop:
+            cpu.Stopped = true
 
         case DAA:
             // BCD fixup after add/subtract
@@ -461,15 +509,23 @@ func DecodeInstruction(instructions []byte) (Instruction, uint8) {
                         return Instruction{Opcode: JR, Immediate8: instructions[1]}, 2
                     }
 
-                    /*
                     if instruction == 0b00010000 {
-                        return "stop"
+                        return Instruction{Opcode: Stop}, 2
                     }
 
                     if instruction >> 5 == 0b001 {
-                        return "jr cond, imm8"
+                        cond := (instruction >> 3) & 0b11
+                        opcode := JrNz
+
+                        switch cond {
+                            case 0b00: opcode = JrNz
+                            case 0b01: opcode = JrZ
+                            case 0b10: opcode = JrNc
+                            case 0b11: opcode = JrC
+                        }
+
+                        return Instruction{Opcode: opcode, Immediate8: instructions[1]}, 2
                     }
-                    */
 
                     /*
                 case 0b100: return "inc r8"
