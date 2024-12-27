@@ -46,6 +46,15 @@ const (
     IncHL
     IncSP
 
+    Inc8B
+    Inc8C
+    Inc8D
+    Inc8E
+    Inc8H
+    Inc8L
+    Inc8HL
+    Inc8A
+
     DecBC
     DecDE
     DecHL
@@ -88,14 +97,26 @@ const (
     R16SP R16 = 3
 )
 
+type R8 uint8
+const (
+    R8B R8 = 0
+    R8C R8 = 1
+    R8D R8 = 2
+    R8E R8 = 3
+    R8H R8 = 4
+    R8L R8 = 5
+    R8HL R8 = 6
+    R8A R8 = 7
+)
+
 type Instruction struct {
     Opcode Opcode
     Immediate8 uint8
     Immediate16 uint16
 }
 
+// pass in non-zero set value to set the bit to 1, 0 to set to 0
 func setBit(value uint8, bit uint8, set uint8) uint8 {
-    set &= 0b1
     if set == 0 {
         return value & ^(1 << bit)
     }
@@ -270,6 +291,82 @@ func (cpu *CPU) Execute(instruction Instruction) {
             cpu.Cycles += 2
             cpu.SP += 1
 
+        case Inc8B:
+            cpu.Cycles += 1
+            cpu.BC += uint16(1) << 8
+            cpu.SetFlagH((uint8(cpu.BC >> 8) >> 4) & 0b1)
+            cpu.SetFlagN(0)
+            cpu.SetFlagZ(uint8(cpu.BC >> 8))
+
+        case Inc8C:
+            cpu.Cycles += 1
+            b := cpu.BC >> 8
+            c := uint8(cpu.BC & 0xff)
+            c += 1
+            cpu.SetFlagH((c & 0b10000))
+            cpu.SetFlagN(0)
+            cpu.SetFlagZ(c)
+            cpu.BC = (uint16(b) << 8) | uint16(c)
+
+        case Inc8D:
+            cpu.Cycles += 1
+            d := uint8(cpu.DE >> 8)
+            e := uint8(cpu.DE & 0xff)
+            d += 1
+            cpu.SetFlagH(d & 0b10000)
+            cpu.SetFlagN(0)
+            cpu.SetFlagZ(d)
+            cpu.DE = (uint16(d) << 8) | uint16(e)
+
+        case Inc8E:
+            cpu.Cycles += 1
+            d := uint8(cpu.DE >> 8)
+            e := uint8(cpu.DE & 0xff)
+            e += 1
+            cpu.SetFlagH(e & 0b10000)
+            cpu.SetFlagN(0)
+            cpu.SetFlagZ(e)
+            cpu.DE = (uint16(d) << 8) | uint16(e)
+
+
+        case Inc8H:
+            cpu.Cycles += 1
+            h := uint8(cpu.HL >> 8)
+            l := uint8(cpu.HL & 0xff)
+            h += 1
+            cpu.SetFlagH(h & 0b10000)
+            cpu.SetFlagN(0)
+            cpu.SetFlagZ(h)
+            cpu.HL = (uint16(h) << 8) | uint16(l)
+
+        case Inc8L:
+            cpu.Cycles += 1
+            h := uint8(cpu.HL >> 8)
+            l := uint8(cpu.HL & 0xff)
+            l += 1
+            cpu.SetFlagH(l & 0b10000)
+            cpu.SetFlagN(0)
+            cpu.SetFlagZ(l)
+            cpu.HL = (uint16(h) << 8) | uint16(l)
+
+        case Inc8HL:
+            cpu.Cycles += 3
+            value := cpu.LoadMemory8(cpu.HL)
+            value += 1
+            cpu.SetFlagH(value & 0b10000)
+            cpu.SetFlagN(0)
+            cpu.SetFlagZ(value)
+            cpu.StoreMemory(cpu.HL, value)
+
+        case Inc8A:
+            cpu.Cycles += 1
+            a := cpu.A
+            a += 1
+            cpu.SetFlagH(a & 0b10000)
+            cpu.SetFlagN(0)
+            cpu.SetFlagZ(a)
+            cpu.A = a
+
         case DecBC:
             cpu.Cycles += 2
             cpu.BC -= 1
@@ -443,6 +540,21 @@ func makeAddHLR16Instruction(r16 R16) Instruction {
     return Instruction{Opcode: Unknown}
 }
 
+func makeIncR8Instruction(r8 R8) Instruction {
+    switch r8 {
+        case R8B: return Instruction{Opcode: Inc8B}
+        case R8C: return Instruction{Opcode: Inc8C}
+        case R8D: return Instruction{Opcode: Inc8D}
+        case R8E: return Instruction{Opcode: Inc8E}
+        case R8H: return Instruction{Opcode: Inc8H}
+        case R8L: return Instruction{Opcode: Inc8L}
+        case R8HL: return Instruction{Opcode: Inc8HL}
+        case R8A: return Instruction{Opcode: Inc8A}
+    }
+
+    return Instruction{Opcode: Unknown}
+}
+
 // instructions should be at least 3 bytes long for 'opcode immediate immediate'
 func DecodeInstruction(instructions []byte) (Instruction, uint8) {
     instruction := instructions[0]
@@ -527,8 +639,11 @@ func DecodeInstruction(instructions []byte) (Instruction, uint8) {
                         return Instruction{Opcode: opcode, Immediate8: instructions[1]}, 2
                     }
 
+                case 0b100:
+                    r8 := R8((instruction >> 3) & 0b111)
+                    return makeIncR8Instruction(r8), 1
+
                     /*
-                case 0b100: return "inc r8"
                 case 0b101: return "dec r8"
                 case 0b110: return "ld r8, imm8"
                 */
