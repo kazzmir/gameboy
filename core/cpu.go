@@ -66,6 +66,8 @@ const (
     CPL
     CCF
 
+    JR
+
     Unknown
 )
 
@@ -203,6 +205,11 @@ func (cpu *CPU) Execute(instruction Instruction) {
 
             cpu.StoreMemory(instruction.Immediate16, value1)
             cpu.StoreMemory(instruction.Immediate16+1, value2)
+
+        case JR:
+            cpu.Cycles += 3
+            offset := int8(instruction.Immediate8)
+            cpu.PC = uint16(int32(cpu.PC) + int32(offset) + 2)
 
         case IncBC:
             cpu.Cycles += 2
@@ -448,13 +455,13 @@ func DecodeInstruction(instructions []byte) (Instruction, uint8) {
                     }
             }
 
-            /*
             switch instruction & 0b111 {
                 case 0b000:
                     if instruction == 0b00011000 {
-                        return "jr imm8"
+                        return Instruction{Opcode: JR, Immediate8: instructions[1]}, 2
                     }
 
+                    /*
                     if instruction == 0b00010000 {
                         return "stop"
                     }
@@ -462,12 +469,14 @@ func DecodeInstruction(instructions []byte) (Instruction, uint8) {
                     if instruction >> 5 == 0b001 {
                         return "jr cond, imm8"
                     }
+                    */
 
+                    /*
                 case 0b100: return "inc r8"
                 case 0b101: return "dec r8"
                 case 0b110: return "ld r8, imm8"
+                */
             }
-            */
 
             /*
         case 0b01:
