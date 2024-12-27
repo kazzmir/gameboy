@@ -21,7 +21,6 @@ type CPU struct {
 type Opcode int
 const (
     Nop Opcode = iota
-    RRCA
 
     LoadBCImmediate
     LoadDEImmediate
@@ -57,6 +56,8 @@ const (
 
     RLCA
     RLA
+    RRCA
+    RRA
 
     DAA
 
@@ -155,14 +156,6 @@ func (cpu *CPU) Execute(instruction Instruction) {
     switch instruction.Opcode {
         case Nop:
             cpu.Cycles += 1
-        case RRCA:
-            cpu.Cycles += 1
-            newA, carry := RotateRight(cpu.A)
-            cpu.A = newA
-            cpu.SetFlagZ(0)
-            cpu.SetFlagH(0)
-            cpu.SetFlagN(0)
-            cpu.SetFlagC(carry)
         case LoadBCImmediate:
             cpu.Cycles += 3
             cpu.BC = instruction.Immediate16
@@ -257,6 +250,16 @@ func (cpu *CPU) Execute(instruction Instruction) {
             cpu.SetFlagN(0)
             cpu.SetFlagC(carry)
 
+        case RRCA:
+            cpu.Cycles += 1
+
+            newA, carry := RotateRight(cpu.A)
+            cpu.A = newA
+            cpu.SetFlagZ(0)
+            cpu.SetFlagH(0)
+            cpu.SetFlagN(0)
+            cpu.SetFlagC(carry)
+
         case RLA:
             cpu.Cycles += 1
 
@@ -268,6 +271,19 @@ func (cpu *CPU) Execute(instruction Instruction) {
             cpu.SetFlagH(0)
             cpu.SetFlagN(0)
             cpu.SetFlagC(newCarry)
+
+        case RRA:
+            cpu.Cycles += 1
+
+            oldCarry := cpu.GetFlagC()
+            newCarry := cpu.A & 0b1
+            cpu.A = (cpu.A >> 1) | (oldCarry << 7)
+
+            cpu.SetFlagZ(0)
+            cpu.SetFlagH(0)
+            cpu.SetFlagN(0)
+            cpu.SetFlagC(newCarry)
+
 
         case DAA:
             // BCD fixup after add/subtract
@@ -411,16 +427,15 @@ func DecodeInstruction(instructions []byte) (Instruction, uint8) {
                         case 0b0011: return Instruction{Opcode: SCF}, 1
                     }
 
-                /*
-
                 case 0b1111: 
                     switch instruction >> 4 {
-                        case 0b0000: return "rrca"
-                        case 0b0001: return "rra"
+                        case 0b0000: return Instruction{Opcode: RRCA}, 1
+                        case 0b0001: return Instruction{Opcode: RRA}, 1
+                        /*
                         case 0b0010: return "cpl"
                         case 0b0011: return "ccf"
+                        */
                     }
-                    */
             }
 
             /*
