@@ -55,6 +55,15 @@ const (
     Inc8HL
     Inc8A
 
+    Dec8B
+    Dec8C
+    Dec8D
+    Dec8E
+    Dec8H
+    Dec8L
+    Dec8HL
+    Dec8A
+
     DecBC
     DecDE
     DecHL
@@ -367,6 +376,51 @@ func (cpu *CPU) Execute(instruction Instruction) {
             cpu.SetFlagZ(a)
             cpu.A = a
 
+        case Dec8B:
+            cpu.Cycles += 1
+            b := uint8(cpu.BC >> 8)
+            c := uint8(cpu.BC & 0xff)
+            cpu.SetFlagH(^(b & 0b1111))
+            b -= 1
+            cpu.SetFlagN(1)
+            cpu.SetFlagZ(b)
+            cpu.BC = (uint16(b) << 8) | uint16(c)
+
+        case Dec8C:
+            cpu.Cycles += 1
+            b := uint8(cpu.BC >> 8)
+            c := uint8(cpu.BC & 0xff)
+            cpu.SetFlagH(^(c & 0b1111))
+            c -= 1
+            cpu.SetFlagN(1)
+            cpu.SetFlagZ(c)
+            cpu.BC = (uint16(b) << 8) | uint16(c)
+
+        case Dec8D:
+            cpu.Cycles += 1
+            d := uint8(cpu.DE >> 8)
+            e := uint8(cpu.DE & 0xff)
+            cpu.SetFlagH(^(d & 0b1111))
+            d -= 1
+            cpu.SetFlagN(1)
+            cpu.SetFlagZ(d)
+            cpu.DE = (uint16(d) << 8) | uint16(e)
+
+        case Dec8E:
+            cpu.Cycles += 1
+            d := uint8(cpu.DE >> 8)
+            e := uint8(cpu.DE & 0xff)
+            cpu.SetFlagH(^(e & 0b1111))
+            e -= 1
+            cpu.SetFlagN(1)
+            cpu.SetFlagZ(e)
+            cpu.DE = (uint16(d) << 8) | uint16(e)
+
+        // case Dec8H:
+        // case Dec8L:
+        // case Dec8HL:
+        // case Dec8A:
+
         case DecBC:
             cpu.Cycles += 2
             cpu.BC -= 1
@@ -555,6 +609,21 @@ func makeIncR8Instruction(r8 R8) Instruction {
     return Instruction{Opcode: Unknown}
 }
 
+func makeDecR8Instruction(r8 R8) Instruction {
+    switch r8 {
+        case R8B: return Instruction{Opcode: Dec8B}
+        case R8C: return Instruction{Opcode: Dec8C}
+        case R8D: return Instruction{Opcode: Dec8D}
+        case R8E: return Instruction{Opcode: Dec8E}
+        case R8H: return Instruction{Opcode: Dec8H}
+        case R8L: return Instruction{Opcode: Dec8L}
+        case R8HL: return Instruction{Opcode: Dec8HL}
+        case R8A: return Instruction{Opcode: Dec8A}
+    }
+
+    return Instruction{Opcode: Unknown}
+}
+
 // instructions should be at least 3 bytes long for 'opcode immediate immediate'
 func DecodeInstruction(instructions []byte) (Instruction, uint8) {
     instruction := instructions[0]
@@ -643,8 +712,11 @@ func DecodeInstruction(instructions []byte) (Instruction, uint8) {
                     r8 := R8((instruction >> 3) & 0b111)
                     return makeIncR8Instruction(r8), 1
 
+                case 0b101:
+                    r8 := R8((instruction >> 3) & 0b111)
+                    return makeDecR8Instruction(r8), 1
+
                     /*
-                case 0b101: return "dec r8"
                 case 0b110: return "ld r8, imm8"
                 */
             }
