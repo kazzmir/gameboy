@@ -63,6 +63,9 @@ const (
 
     SCF
 
+    CPL
+    CCF
+
     Unknown
 )
 
@@ -239,6 +242,15 @@ func (cpu *CPU) Execute(instruction Instruction) {
         case AddHLSP:
             cpu.Cycles += 2
             cpu.AddHL(cpu.SP)
+
+        case CPL:
+            cpu.Cycles += 1
+            cpu.A = ^cpu.A
+
+        case CCF:
+            cpu.Cycles += 1
+            carry := cpu.GetFlagC()
+            cpu.SetFlagC(1 - carry)
 
         case RLCA:
             cpu.Cycles += 1
@@ -431,10 +443,8 @@ func DecodeInstruction(instructions []byte) (Instruction, uint8) {
                     switch instruction >> 4 {
                         case 0b0000: return Instruction{Opcode: RRCA}, 1
                         case 0b0001: return Instruction{Opcode: RRA}, 1
-                        /*
-                        case 0b0010: return "cpl"
-                        case 0b0011: return "ccf"
-                        */
+                        case 0b0010: return Instruction{Opcode: CPL}, 1
+                        case 0b0011: return Instruction{Opcode: CCF}, 1
                     }
             }
 
