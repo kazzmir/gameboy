@@ -80,6 +80,9 @@ const (
     AddHLHL
     AddHLSP
 
+    AddAR8
+    AddAHLMem
+
     RLCA
     RLA
     RRCA
@@ -539,6 +542,38 @@ func (cpu *CPU) Execute(instruction Instruction) {
             value := cpu.GetRegister8(instruction.R8_2)
             cpu.SetRegister8(instruction.R8_1, value)
 
+        case AddAR8:
+            cpu.Cycles += 1
+            value := cpu.GetRegister8(instruction.R8_1)
+            carry := uint8(0)
+            if uint32(cpu.A) + uint32(value) > 0xff {
+                carry = 1
+            }
+            halfCarry := uint8(0)
+            if ((cpu.A & 0xf) + (value & 0xf)) & 0x10 == 0x10 {
+                halfCarry = 1
+            }
+            cpu.A += value
+            cpu.SetFlagC(carry)
+            cpu.SetFlagH(halfCarry)
+            cpu.SetFlagZ(cpu.A)
+
+        case AddAHLMem:
+            cpu.Cycles += 2
+            value := cpu.LoadMemory8(cpu.HL)
+            carry := uint8(0)
+            if uint32(cpu.A) + uint32(value) > 0xff {
+                carry = 1
+            }
+            halfCarry := uint8(0)
+            if ((cpu.A & 0xf) + (value & 0xf)) & 0x10 == 0x10 {
+                halfCarry = 1
+            }
+            cpu.A += value
+            cpu.SetFlagC(carry)
+            cpu.SetFlagH(halfCarry)
+            cpu.SetFlagZ(cpu.A)
+
         case AddHLBC:
             cpu.Cycles += 2
             cpu.AddHL(cpu.BC)
@@ -843,10 +878,15 @@ func DecodeInstruction(instructions []byte) (Instruction, uint8) {
 
             return Instruction{Opcode: LoadR8R8, R8_1: dest, R8_2: source}, 1
 
-            /*
         case 0b10:
             switch (instruction >> 3) & 0b111 {
-                case 0b000: return "add a, r8"
+                case 0b000:
+                    r8 := R8(instruction & 0b111)
+                    if r8 == R8HL {
+                        return Instruction{Opcode: AddAHLMem}, 1
+                    }
+                    return Instruction{Opcode: AddAR8, R8_1: r8}, 1
+                /*
                 case 0b001: return "adc a, r8"
                 case 0b010: return "sub a, r8"
                 case 0b011: return "sbc a, r8"
@@ -854,7 +894,9 @@ func DecodeInstruction(instructions []byte) (Instruction, uint8) {
                 case 0b101: return "xor a, r8"
                 case 0b110: return "or a, r8"
                 case 0b111: return "cp a, r8"
+                */
             }
+            /*
         case 0b11:
             switch instruction & 0b111111 {
                 case 0b000110: return "add a, imm8"
