@@ -18,6 +18,7 @@ type CPU struct {
     Cycles uint64
 
     Stopped bool
+    Halted bool
 }
 
 type Opcode int
@@ -37,6 +38,8 @@ const (
     Load8LImmediate
     Load8HLImmediate
     Load8AImmediate
+
+    LoadR8R8
 
     StoreBCMemA
     StoreDEMemA
@@ -103,6 +106,7 @@ const (
     JrC
 
     Stop
+    Halt
 
     Unknown
 )
@@ -129,6 +133,12 @@ const (
 
 type Instruction struct {
     Opcode Opcode
+
+    // if the instruction uses registers, these will be set to the register number
+    R8_1 R8
+    R8_2 R8
+    R16_1 R16
+    R16_2 R16
     Immediate8 uint8
     Immediate16 uint16
 }
@@ -206,6 +216,52 @@ func (cpu *CPU) AddHL(value uint16) {
         cpu.SetFlagC(1)
     } else {
         cpu.SetFlagC(0)
+    }
+}
+
+func (cpu *CPU) GetRegister8(r8 R8) uint8 {
+    switch r8 {
+        case R8B: return uint8(cpu.BC >> 8)
+        case R8C: return uint8(cpu.BC & 0xff)
+        case R8D: return uint8(cpu.DE >> 8)
+        case R8E: return uint8(cpu.DE & 0xff)
+        case R8H: return uint8(cpu.HL >> 8)
+        case R8L: return uint8(cpu.HL & 0xff)
+        case R8A: return cpu.A
+        // don't handle R8HL here
+    }
+
+    return 0
+}
+
+func (cpu *CPU) SetRegister8(r8 R8, value uint8) {
+    switch r8 {
+        case R8B:
+            c := uint8(cpu.BC & 0xff)
+            b := value
+            cpu.BC = (uint16(b) << 8) | uint16(c)
+        case R8C:
+            b := uint8(cpu.BC >> 8)
+            c := value
+            cpu.BC = (uint16(b) << 8) | uint16(c)
+        case R8D:
+            e := uint8(cpu.DE & 0xff)
+            d := value
+            cpu.DE = (uint16(d) << 8) | uint16(e)
+        case R8E:
+            d := uint8(cpu.DE >> 8)
+            e := value
+            cpu.DE = (uint16(d) << 8) | uint16(e)
+        case R8H:
+            l := uint8(cpu.HL & 0xff)
+            h := value
+            cpu.HL = (uint16(h) << 8) | uint16(l)
+        case R8L:
+            h := uint8(cpu.HL >> 8)
+            l := value
+            cpu.HL = (uint16(h) << 8) | uint16(l)
+        case R8A:
+            cpu.A = value
     }
 }
 
@@ -520,6 +576,11 @@ func (cpu *CPU) Execute(instruction Instruction) {
             cpu.Cycles += 2
             cpu.A = instruction.Immediate8
 
+        case LoadR8R8:
+            cpu.Cycles += 1
+            value := cpu.GetRegister8(instruction.R8_2)
+            cpu.SetRegister8(instruction.R8_1, value)
+
         case AddHLBC:
             cpu.Cycles += 2
             cpu.AddHL(cpu.BC)
@@ -588,6 +649,9 @@ func (cpu *CPU) Execute(instruction Instruction) {
 
         case Stop:
             cpu.Stopped = true
+
+        case Halt:
+            cpu.Halted = true
 
         case DAA:
             // BCD fixup after add/subtract
@@ -820,22 +884,19 @@ func DecodeInstruction(instructions []byte) (Instruction, uint8) {
                 case 0b110:
                     r8 := R8((instruction >> 3) & 0b111)
                     return makeLoadR8Immediate(r8, instructions[1]), 2
-
-                    // return "ld r8, imm8"
-
             }
 
-            /*
         case 0b01:
             if instruction & 0b11111 == 0b110110 {
-                return "halt"
+                return Instruction{Opcode: Halt}, 1
             }
 
-            // source := instruction & 0b111
-            // dest := (instruction >> 3) & 0b111
+            source := R8(instruction & 0b111)
+            dest := R8((instruction >> 3) & 0b111)
 
-            return "ld r8, r8"
+            return Instruction{Opcode: LoadR8R8, R8_1: dest, R8_2: source}, 1
 
+            /*
         case 0b10:
             switch (instruction >> 3) & 0b111 {
                 case 0b000: return "add a, r8"
