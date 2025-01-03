@@ -416,10 +416,43 @@ func (cpu *CPU) Execute(instruction Instruction) {
             cpu.SetFlagZ(e)
             cpu.DE = (uint16(d) << 8) | uint16(e)
 
-        // case Dec8H:
-        // case Dec8L:
-        // case Dec8HL:
-        // case Dec8A:
+        case Dec8H:
+            cpu.Cycles += 1
+            h := uint8(cpu.HL >> 8)
+            l := uint8(cpu.HL & 0xff)
+            cpu.SetFlagH(^(h & 0b1111))
+            h -= 1
+            cpu.SetFlagN(1)
+            cpu.SetFlagZ(h)
+            cpu.HL = (uint16(h) << 8) | uint16(l)
+
+        case Dec8L:
+            cpu.Cycles += 1
+            h := uint8(cpu.HL >> 8)
+            l := uint8(cpu.HL & 0xff)
+            cpu.SetFlagH(^(l & 0b1111))
+            l -= 1
+            cpu.SetFlagN(1)
+            cpu.SetFlagZ(l)
+            cpu.HL = (uint16(h) << 8) | uint16(l)
+
+        case Dec8HL:
+            cpu.Cycles += 3
+            value := cpu.LoadMemory8(cpu.HL)
+            cpu.SetFlagH(^(value & 0b1111))
+            value -= 1
+            cpu.SetFlagN(1)
+            cpu.SetFlagZ(value)
+            cpu.StoreMemory(cpu.HL, value)
+
+        case Dec8A:
+            cpu.Cycles += 1
+            a := cpu.A
+            cpu.SetFlagH(^(a & 0b1111))
+            a -= 1
+            cpu.SetFlagN(1)
+            cpu.SetFlagZ(a)
+            cpu.A = a
 
         case DecBC:
             cpu.Cycles += 2
