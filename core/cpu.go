@@ -30,6 +30,7 @@ const (
     LoadHLImmediate
     LoadSPImmediate
 
+    /*
     Load8BImmediate
     Load8CImmediate
     Load8DImmediate
@@ -38,6 +39,10 @@ const (
     Load8LImmediate
     Load8HLImmediate
     Load8AImmediate
+    */
+
+    Load8Immediate
+    StoreHLImmediate
 
     LoadR8R8
 
@@ -532,6 +537,7 @@ func (cpu *CPU) Execute(instruction Instruction) {
             cpu.Cycles += 2
             cpu.SP -= 1
 
+            /*
         case Load8BImmediate:
             cpu.Cycles += 2
             c := cpu.BC & 0xff
@@ -568,13 +574,18 @@ func (cpu *CPU) Execute(instruction Instruction) {
             l := uint16(instruction.Immediate8)
             cpu.HL = (h << 8) | l
 
-        case Load8HLImmediate:
-            cpu.Cycles += 3
-            cpu.StoreMemory(cpu.HL, instruction.Immediate8)
-
         case Load8AImmediate:
             cpu.Cycles += 2
             cpu.A = instruction.Immediate8
+            */
+
+        case Load8Immediate:
+            cpu.Cycles += 2
+            cpu.SetRegister8(instruction.R8_1, instruction.Immediate8)
+
+        case StoreHLImmediate:
+            cpu.Cycles += 3
+            cpu.StoreMemory(cpu.HL, instruction.Immediate8)
 
         case LoadR8R8:
             cpu.Cycles += 1
@@ -774,6 +785,7 @@ func makeDecR8Instruction(r8 R8) Instruction {
     return Instruction{Opcode: Unknown}
 }
 
+/*
 func makeLoadR8Immediate(r8 R8, immediate uint8) Instruction {
     switch r8 {
         case R8B: return Instruction{Opcode: Load8BImmediate, Immediate8: immediate}
@@ -788,6 +800,7 @@ func makeLoadR8Immediate(r8 R8, immediate uint8) Instruction {
 
     return Instruction{Opcode: Unknown}
 }
+*/
 
 // instructions should be at least 3 bytes long for 'opcode immediate immediate'
 func DecodeInstruction(instructions []byte) (Instruction, uint8) {
@@ -883,7 +896,11 @@ func DecodeInstruction(instructions []byte) (Instruction, uint8) {
 
                 case 0b110:
                     r8 := R8((instruction >> 3) & 0b111)
-                    return makeLoadR8Immediate(r8, instructions[1]), 2
+                    if r8 == R8HL {
+                        return Instruction{Opcode: StoreHLImmediate, Immediate8: instructions[1]}, 2
+                    }
+
+                    return Instruction{Opcode: Load8Immediate, R8_1: r8, Immediate8: instructions[1]}, 2
             }
 
         case 0b01:
