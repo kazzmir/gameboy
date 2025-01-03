@@ -29,6 +29,15 @@ const (
     LoadHLImmediate
     LoadSPImmediate
 
+    Load8BImmediate
+    Load8CImmediate
+    Load8DImmediate
+    Load8EImmediate
+    Load8HImmediate
+    Load8LImmediate
+    Load8HLImmediate
+    Load8AImmediate
+
     StoreBCMemA
     StoreDEMemA
     StoreHLMemA
@@ -467,6 +476,50 @@ func (cpu *CPU) Execute(instruction Instruction) {
             cpu.Cycles += 2
             cpu.SP -= 1
 
+        case Load8BImmediate:
+            cpu.Cycles += 2
+            c := cpu.BC & 0xff
+            b := uint16(instruction.Immediate8)
+            cpu.BC = (b << 8) | c
+
+        case Load8CImmediate:
+            cpu.Cycles += 2
+            b := cpu.BC >> 8
+            c := uint16(instruction.Immediate8)
+            cpu.BC = (b << 8) | c
+
+        case Load8DImmediate:
+            cpu.Cycles += 2
+            e := cpu.DE & 0xff
+            d := uint16(instruction.Immediate8)
+            cpu.DE = (d << 8) | e
+
+        case Load8EImmediate:
+            cpu.Cycles += 2
+            d := cpu.DE >> 8
+            e := uint16(instruction.Immediate8)
+            cpu.DE = (d << 8) | e
+
+        case Load8HImmediate:
+            cpu.Cycles += 2
+            l := cpu.HL & 0xff
+            h := uint16(instruction.Immediate8)
+            cpu.HL = (h << 8) | l
+
+        case Load8LImmediate:
+            cpu.Cycles += 2
+            h := cpu.HL >> 8
+            l := uint16(instruction.Immediate8)
+            cpu.HL = (h << 8) | l
+
+        case Load8HLImmediate:
+            cpu.Cycles += 3
+            cpu.StoreMemory(cpu.HL, instruction.Immediate8)
+
+        case Load8AImmediate:
+            cpu.Cycles += 2
+            cpu.A = instruction.Immediate8
+
         case AddHLBC:
             cpu.Cycles += 2
             cpu.AddHL(cpu.BC)
@@ -657,6 +710,21 @@ func makeDecR8Instruction(r8 R8) Instruction {
     return Instruction{Opcode: Unknown}
 }
 
+func makeLoadR8Immediate(r8 R8, immediate uint8) Instruction {
+    switch r8 {
+        case R8B: return Instruction{Opcode: Load8BImmediate, Immediate8: immediate}
+        case R8C: return Instruction{Opcode: Load8CImmediate, Immediate8: immediate}
+        case R8D: return Instruction{Opcode: Load8DImmediate, Immediate8: immediate}
+        case R8E: return Instruction{Opcode: Load8EImmediate, Immediate8: immediate}
+        case R8H: return Instruction{Opcode: Load8HImmediate, Immediate8: immediate}
+        case R8L: return Instruction{Opcode: Load8LImmediate, Immediate8: immediate}
+        case R8HL: return Instruction{Opcode: Load8HLImmediate, Immediate8: immediate}
+        case R8A: return Instruction{Opcode: Load8AImmediate, Immediate8: immediate}
+    }
+
+    return Instruction{Opcode: Unknown}
+}
+
 // instructions should be at least 3 bytes long for 'opcode immediate immediate'
 func DecodeInstruction(instructions []byte) (Instruction, uint8) {
     instruction := instructions[0]
@@ -749,9 +817,12 @@ func DecodeInstruction(instructions []byte) (Instruction, uint8) {
                     r8 := R8((instruction >> 3) & 0b111)
                     return makeDecR8Instruction(r8), 1
 
-                    /*
-                case 0b110: return "ld r8, imm8"
-                */
+                case 0b110:
+                    r8 := R8((instruction >> 3) & 0b111)
+                    return makeLoadR8Immediate(r8, instructions[1]), 2
+
+                    // return "ld r8, imm8"
+
             }
 
             /*
