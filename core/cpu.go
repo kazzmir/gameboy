@@ -83,6 +83,9 @@ const (
     AddAR8
     AddAHLMem
 
+    AdcAR8
+    AdcAHLMem
+
     RLCA
     RLA
     RRCA
@@ -886,8 +889,14 @@ func DecodeInstruction(instructions []byte) (Instruction, uint8) {
                         return Instruction{Opcode: AddAHLMem}, 1
                     }
                     return Instruction{Opcode: AddAR8, R8_1: r8}, 1
+                case 0b001:
+                    r8 := R8(instruction & 0b111)
+                    if r8 == R8HL {
+                        return Instruction{Opcode: AdcAHLMem}, 1
+                    }
+                    return Instruction{Opcode: AdcAR8, R8_1: r8}, 1
+
                 /*
-                case 0b001: return "adc a, r8"
                 case 0b010: return "sub a, r8"
                 case 0b011: return "sbc a, r8"
                 case 0b100: return "and a, r8"
