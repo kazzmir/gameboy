@@ -89,6 +89,9 @@ const (
     AdcAR8
     AdcAHLMem
 
+    AndAR8
+    AndAHLMem
+
     SbcAR8
     SbcAHLMem
 
@@ -617,6 +620,24 @@ func (cpu *CPU) Execute(instruction Instruction) {
             cpu.SetFlagH(halfCarry)
             cpu.SetFlagZ(cpu.A)
 
+        case AndAR8:
+            cpu.Cycles += 1
+            value := cpu.GetRegister8(instruction.R8_1)
+            cpu.A &= value
+            cpu.SetFlagC(0)
+            cpu.SetFlagH(1)
+            cpu.SetFlagZ(cpu.A)
+            cpu.SetFlagN(0)
+
+        case AndAHLMem:
+            cpu.Cycles += 2
+            value := cpu.LoadMemory8(cpu.HL)
+            cpu.A &= value
+            cpu.SetFlagC(0)
+            cpu.SetFlagH(1)
+            cpu.SetFlagZ(cpu.A)
+            cpu.SetFlagN(0)
+
         case SubAR8:
             cpu.Cycles += 1
             value := cpu.GetRegister8(instruction.R8_1)
@@ -1021,8 +1042,15 @@ func DecodeInstruction(instructions []byte) (Instruction, uint8) {
 
                     return Instruction{Opcode: SbcAR8, R8_1: r8}, 1
 
+                case 0b100:
+                    r8 := R8(instruction & 0b111)
+                    if r8 == R8HL {
+                        return Instruction{Opcode: AndAHLMem}, 1
+                    }
+
+                    return Instruction{Opcode: AndAR8, R8_1: r8}, 1
+
                 /*
-                case 0b100: return "and a, r8"
                 case 0b101: return "xor a, r8"
                 case 0b110: return "or a, r8"
                 case 0b111: return "cp a, r8"
