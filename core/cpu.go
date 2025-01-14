@@ -83,6 +83,9 @@ const (
     AddAR8
     AddAHLMem
 
+    SubAR8
+    SubAHLMem
+
     AdcAR8
     AdcAHLMem
 
@@ -577,6 +580,39 @@ func (cpu *CPU) Execute(instruction Instruction) {
             cpu.SetFlagH(halfCarry)
             cpu.SetFlagZ(cpu.A)
 
+        case SubAR8:
+            cpu.Cycles += 1
+            value := cpu.GetRegister8(instruction.R8_1)
+            carry := uint8(0)
+            if value > cpu.A {
+                carry = 1
+            }
+            halfCarry := uint8(0)
+            if ((cpu.A & 0xf) - (value & 0xf)) & 0x10 == 0x10 {
+                halfCarry = 1
+            }
+
+            cpu.A -= value
+            cpu.SetFlagC(carry)
+            cpu.SetFlagH(halfCarry)
+            cpu.SetFlagZ(cpu.A)
+
+        case SubAHLMem:
+            cpu.Cycles += 2
+            value := cpu.LoadMemory8(cpu.HL)
+            carry := uint8(0)
+            if value > cpu.A {
+                carry = 1
+            }
+            halfCarry := uint8(0)
+            if ((cpu.A & 0xf) - (value & 0xf)) & 0x10 == 0x10 {
+                halfCarry = 1
+            }
+            cpu.A -= value
+            cpu.SetFlagC(carry)
+            cpu.SetFlagH(halfCarry)
+            cpu.SetFlagZ(cpu.A)
+
         case AddHLBC:
             cpu.Cycles += 2
             cpu.AddHL(cpu.BC)
@@ -896,8 +932,14 @@ func DecodeInstruction(instructions []byte) (Instruction, uint8) {
                     }
                     return Instruction{Opcode: AdcAR8, R8_1: r8}, 1
 
+                case 0b010:
+                    r8 := R8(instruction & 0b111)
+                    if r8 == R8HL {
+                        return Instruction{Opcode: SubAHLMem}, 1
+                    }
+                    return Instruction{Opcode: SubAR8, R8_1: r8}, 1
+
                 /*
-                case 0b010: return "sub a, r8"
                 case 0b011: return "sbc a, r8"
                 case 0b100: return "and a, r8"
                 case 0b101: return "xor a, r8"
