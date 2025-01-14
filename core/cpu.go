@@ -87,6 +87,7 @@ const (
     AndAImmediate
     XorAImmediate
     OrAImmediate
+    CpAImmediate
 
     AddAR8
     AddAHLMem
@@ -888,6 +889,25 @@ func (cpu *CPU) Execute(instruction Instruction) {
             cpu.SetFlagH(halfCarry)
             cpu.SetFlagZ(cpu.A)
 
+        case CpAImmediate:
+            // same as sub, but don't store result
+            cpu.Cycles += 2
+            value := instruction.Immediate8
+
+            carry := uint8(0)
+            if value > cpu.A {
+                carry = 1
+            }
+            halfCarry := uint8(0)
+            if ((cpu.A & 0xf) - (value & 0xf)) & 0x10 == 0x10 {
+                halfCarry = 1
+            }
+
+            cpu.SetFlagN(1)
+            cpu.SetFlagC(carry)
+            cpu.SetFlagH(halfCarry)
+            cpu.SetFlagZ(cpu.A)
+
         case CpAHLMem:
             cpu.Cycles += 2
             value := cpu.LoadMemory8(cpu.HL)
@@ -1285,9 +1305,10 @@ func DecodeInstruction(instructions []byte) (Instruction, uint8) {
                     return Instruction{Opcode: XorAImmediate, Immediate8: instructions[1]}, 2
                 case 0b110110:
                     return Instruction{Opcode: OrAImmediate, Immediate8: instructions[1]}, 2
+                case 0b111110:
+                    return Instruction{Opcode: CpAImmediate, Immediate8: instructions[1]}, 2
 
                 /*
-                case 0b111110: return "cp a, imm8"
 
                 case 0b100010: return "ldh [c], a"
                 case 0b100000: return "ldh [imm8], a"
