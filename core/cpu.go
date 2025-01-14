@@ -86,6 +86,7 @@ const (
     SbcAImmediate
     AndAImmediate
     XorAImmediate
+    OrAImmediate
 
     AddAR8
     AddAHLMem
@@ -685,7 +686,7 @@ func (cpu *CPU) Execute(instruction Instruction) {
             cpu.SetFlagN(0)
 
         case AndAImmediate:
-            cpu.Cycles += 1
+            cpu.Cycles += 2
             value := instruction.Immediate8
             cpu.A &= value
             cpu.SetFlagC(0)
@@ -712,7 +713,7 @@ func (cpu *CPU) Execute(instruction Instruction) {
             cpu.SetFlagN(0)
 
         case XorAImmediate:
-            cpu.Cycles += 1
+            cpu.Cycles += 2
             value := instruction.Immediate8
             cpu.A ^= value
             cpu.SetFlagC(0)
@@ -732,6 +733,15 @@ func (cpu *CPU) Execute(instruction Instruction) {
         case OrAR8:
             cpu.Cycles += 1
             value := cpu.GetRegister8(instruction.R8_1)
+            cpu.A |= value
+            cpu.SetFlagC(0)
+            cpu.SetFlagH(0)
+            cpu.SetFlagZ(cpu.A)
+            cpu.SetFlagN(0)
+
+        case OrAImmediate:
+            cpu.Cycles += 2
+            value := instruction.Immediate8
             cpu.A |= value
             cpu.SetFlagC(0)
             cpu.SetFlagH(0)
@@ -1273,9 +1283,10 @@ func DecodeInstruction(instructions []byte) (Instruction, uint8) {
                     return Instruction{Opcode: AndAImmediate, Immediate8: instructions[1]}, 2
                 case 0b101110:
                     return Instruction{Opcode: XorAImmediate, Immediate8: instructions[1]}, 2
+                case 0b110110:
+                    return Instruction{Opcode: OrAImmediate, Immediate8: instructions[1]}, 2
 
                 /*
-                case 0b110110: return "or a, imm8"
                 case 0b111110: return "cp a, imm8"
 
                 case 0b100010: return "ldh [c], a"
