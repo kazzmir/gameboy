@@ -46,6 +46,7 @@ const (
     LoadAMemSP
 
     LdhCA
+    LdhImmediate8A
 
     StoreSPMem16
 
@@ -346,6 +347,11 @@ func (cpu *CPU) Execute(instruction Instruction) {
         case LdhCA:
             cpu.Cycles += 2
             address := 0xff00 + uint16(cpu.GetRegister8(R8C))
+            cpu.StoreMemory(address, cpu.A)
+
+        case LdhImmediate8A:
+            cpu.Cycles += 2
+            address := 0xff00 + uint16(instruction.Immediate8)
             cpu.StoreMemory(address, cpu.A)
 
         case JR:
@@ -1318,8 +1324,11 @@ func DecodeInstruction(instructions []byte) (Instruction, uint8) {
                     return Instruction{Opcode: LdhCA}, 1
                     // return "ldh [c], a"
 
+                case 0b100000:
+                    return Instruction{Opcode: LdhImmediate8A, Immediate8: instructions[1]}, 2
+                    // return "ldh [imm8], a"
+
                 /*
-                case 0b100000: return "ldh [imm8], a"
                 case 0b101010: return "ld [imm16], a"
                 case 0b110010: return "ldh a, [c]"
                 case 0b110000: return "ldh a, [imm8]"
