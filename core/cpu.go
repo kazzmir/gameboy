@@ -80,6 +80,8 @@ const (
     AddHLHL
     AddHLSP
 
+    AddAImmediate
+
     AddAR8
     AddAHLMem
 
@@ -566,6 +568,23 @@ func (cpu *CPU) Execute(instruction Instruction) {
         case AddAR8:
             cpu.Cycles += 1
             value := cpu.GetRegister8(instruction.R8_1)
+            carry := uint8(0)
+            if uint32(cpu.A) + uint32(value) > 0xff {
+                carry = 1
+            }
+            halfCarry := uint8(0)
+            if ((cpu.A & 0xf) + (value & 0xf)) & 0x10 == 0x10 {
+                halfCarry = 1
+            }
+            cpu.A += value
+            cpu.SetFlagC(carry)
+            cpu.SetFlagH(halfCarry)
+            cpu.SetFlagZ(cpu.A)
+            cpu.SetFlagN(0)
+
+        case AddAImmediate:
+            cpu.Cycles += 2
+            value := instruction.Immediate8
             carry := uint8(0)
             if uint32(cpu.A) + uint32(value) > 0xff {
                 carry = 1
@@ -1161,10 +1180,12 @@ func DecodeInstruction(instructions []byte) (Instruction, uint8) {
                     }
                     return Instruction{Opcode: CpAR8, R8_1: r8}, 1
             }
-            /*
         case 0b11:
             switch instruction & 0b111111 {
-                case 0b000110: return "add a, imm8"
+                case 0b000110:
+                    return Instruction{Opcode: AddAImmediate, Immediate8: instructions[1]}, 2
+
+                /*
                 case 0b001110: return "adc a, imm8"
                 case 0b010110: return "sub a, imm8"
                 case 0b011110: return "sbc a, imm8"
@@ -1186,8 +1207,10 @@ func DecodeInstruction(instructions []byte) (Instruction, uint8) {
 
                 case 0b110011: return "di"
                 case 0b111011: return "ei"
+                */
             }
 
+            /*
             switch instruction & 0b1111 {
                 case 0b0001: return "pop r16stk"
                 case 0b0101: return "push r16stk"
