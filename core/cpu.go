@@ -46,7 +46,11 @@ const (
     LoadAMemSP
 
     LdhCA
+    LdhAC
     LdhImmediate8A
+    LdhAImmediate8
+
+    LdImmediate16A
 
     StoreSPMem16
 
@@ -349,10 +353,24 @@ func (cpu *CPU) Execute(instruction Instruction) {
             address := 0xff00 + uint16(cpu.GetRegister8(R8C))
             cpu.StoreMemory(address, cpu.A)
 
+        case LdhAC:
+            cpu.Cycles += 2
+            address := 0xff00 + uint16(cpu.GetRegister8(R8C))
+            cpu.A = cpu.LoadMemory8(address)
+
         case LdhImmediate8A:
             cpu.Cycles += 2
             address := 0xff00 + uint16(instruction.Immediate8)
             cpu.StoreMemory(address, cpu.A)
+
+        case LdhAImmediate8:
+            cpu.Cycles += 3
+            address := 0xff00 + uint16(instruction.Immediate8)
+            cpu.A = cpu.LoadMemory8(address)
+
+        case LdImmediate16A:
+            cpu.Cycles += 4
+            cpu.StoreMemory(instruction.Immediate16, cpu.A)
 
         case JR:
             cpu.Cycles += 3
@@ -1328,10 +1346,20 @@ func DecodeInstruction(instructions []byte) (Instruction, uint8) {
                     return Instruction{Opcode: LdhImmediate8A, Immediate8: instructions[1]}, 2
                     // return "ldh [imm8], a"
 
+                case 0b101010:
+                    imm16 := makeImm16(instructions[1:])
+                    return Instruction{Opcode: LdImmediate16A, Immediate16: imm16}, 3
+                    // return "ld [imm16], a"
+
+                case 0b110010:
+                    return Instruction{Opcode: LdhAC}, 1
+                    // return "ldh a, [c]"
+
+                case 0b110000:
+                    return Instruction{Opcode: LdhAImmediate8, Immediate8: instructions[1]}, 2
+                    // return "ldh a, [imm8]"
+
                 /*
-                case 0b101010: return "ld [imm16], a"
-                case 0b110010: return "ldh a, [c]"
-                case 0b110000: return "ldh a, [imm8]"
                 case 0b111010: return "ld a, [imm16]"
 
                 case 0b101000: return "add sp, imm8"
