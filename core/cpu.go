@@ -17,6 +17,8 @@ type CPU struct {
     PC uint16
     Cycles uint64
 
+    InterruptFlag bool // IME
+
     Stopped bool
     Halted bool
 }
@@ -33,6 +35,8 @@ const (
     Load8Immediate
     StoreHLImmediate
 
+    LdHlSpImmediate8
+
     LoadR8R8
 
     StoreBCMemA
@@ -40,10 +44,15 @@ const (
     StoreHLMemA
     StoreSPMemA
 
+    DisableInterrupts
+    EnableInterrupts
+
     LoadAMemBC
     LoadAMemDE
     LoadAMemHL
     LoadAMemSP
+
+    LdSpHl
 
     LdhCA
     LdhAC
@@ -51,6 +60,7 @@ const (
     LdhAImmediate8
 
     LdImmediate16A
+    LdAImmediate16
 
     StoreSPMem16
 
@@ -86,6 +96,8 @@ const (
     AddHLDE
     AddHLHL
     AddHLSP
+
+    AddSpImmediate8
 
     AddAImmediate
     AdcAImmediate
@@ -348,6 +360,10 @@ func (cpu *CPU) Execute(instruction Instruction) {
             cpu.StoreMemory(instruction.Immediate16, value1)
             cpu.StoreMemory(instruction.Immediate16+1, value2)
 
+        case LdSpHl:
+            cpu.Cycles += 2
+            cpu.HL = cpu.SP
+
         case LdhCA:
             cpu.Cycles += 2
             address := 0xff00 + uint16(cpu.GetRegister8(R8C))
@@ -371,6 +387,10 @@ func (cpu *CPU) Execute(instruction Instruction) {
         case LdImmediate16A:
             cpu.Cycles += 4
             cpu.StoreMemory(instruction.Immediate16, cpu.A)
+
+        case LdAImmediate16:
+            cpu.Cycles += 4
+            cpu.A = cpu.LoadMemory8(instruction.Immediate16)
 
         case JR:
             cpu.Cycles += 3
@@ -409,6 +429,14 @@ func (cpu *CPU) Execute(instruction Instruction) {
             } else {
                 cpu.Cycles += 2
             }
+
+        case DisableInterrupts:
+            cpu.Cycles += 1
+            cpu.InterruptFlag = false
+
+        case EnableInterrupts:
+            cpu.Cycles += 1
+            cpu.InterruptFlag = true
 
         case IncBC:
             cpu.Cycles += 2
@@ -635,6 +663,42 @@ func (cpu *CPU) Execute(instruction Instruction) {
             cpu.SetFlagC(carry)
             cpu.SetFlagH(halfCarry)
             cpu.SetFlagZ(cpu.A)
+            cpu.SetFlagN(0)
+
+        case LdHlSpImmediate8:
+            cpu.Cycles += 3
+            value := int8(instruction.Immediate8)
+
+            carry := uint8(0)
+            if int32(cpu.SP) + int32(value) > 0xffff {
+                carry = 1
+            }
+
+            // FIXME: half carry
+            var halfCarry uint8 = 0
+
+            cpu.HL = uint16(int32(cpu.SP) + int32(value))
+            cpu.SetFlagC(carry)
+            cpu.SetFlagH(halfCarry)
+            cpu.SetFlagZ(0)
+            cpu.SetFlagN(0)
+
+        case AddSpImmediate8:
+            cpu.Cycles += 4
+            value := int8(instruction.Immediate8)
+
+            carry := uint8(0)
+            if int32(cpu.SP) + int32(value) > 0xffff {
+                carry = 1
+            }
+
+            // FIXME: half carry
+            var halfCarry uint8 = 0
+
+            cpu.SP = uint16(int32(cpu.SP) + int32(value))
+            cpu.SetFlagC(carry)
+            cpu.SetFlagH(halfCarry)
+            cpu.SetFlagZ(0)
             cpu.SetFlagN(0)
 
         case AdcAR8:
@@ -1359,16 +1423,30 @@ func DecodeInstruction(instructions []byte) (Instruction, uint8) {
                     return Instruction{Opcode: LdhAImmediate8, Immediate8: instructions[1]}, 2
                     // return "ldh a, [imm8]"
 
-                /*
-                case 0b111010: return "ld a, [imm16]"
+                case 0b111010:
+                    imm16 := makeImm16(instructions[1:])
+                    return Instruction{Opcode: LdAImmediate16, Immediate16: imm16}, 3
+                    // return "ld a, [imm16]"
 
-                case 0b101000: return "add sp, imm8"
-                case 0b111000: return "ld hl, sp + imm8"
-                case 0b111001: return "ld sp, hl"
+                case 0b101000:
+                    return Instruction{Opcode: AddSpImmediate8, Immediate8: instructions[1]}, 2
+                    // return "add sp, imm8"
 
-                case 0b110011: return "di"
-                case 0b111011: return "ei"
-                */
+                case 0b111000:
+                    return Instruction{Opcode: LdHlSpImmediate8, Immediate8: instructions[1]}, 2
+                    // return "ld hl, sp + imm8"
+
+                case 0b111001:
+                    return Instruction{Opcode: LdSpHl}, 1
+                    // return "ld sp, hl"
+
+                case 0b110011:
+                    return Instruction{Opcode: DisableInterrupts}, 1
+                    // return "di"
+
+                case 0b111011:
+                    return Instruction{Opcode: EnableInterrupts}, 1
+                    // return "ei"
             }
 
             /*
