@@ -156,6 +156,16 @@ const (
     JrNc
     JrC
 
+    JpNzImmediate16
+    JpZImmediate16
+    JpNcImmediate16
+    JpCImmediate16
+
+    RetNz
+    RetZ
+    RetNc
+    RetC
+
     Stop
     Halt
 
@@ -316,6 +326,40 @@ func (cpu *CPU) SetRegister8(r8 R8, value uint8) {
     }
 }
 
+func (cpu *CPU) doRetCond(cond bool) {
+    if cond {
+        cpu.Cycles += 5
+
+        // POP PC
+        low := cpu.LoadMemory8(cpu.SP)
+        cpu.SP += 1
+        high := cpu.LoadMemory8(cpu.SP)
+        cpu.SP += 1
+        cpu.PC = (uint16(high) << 8) | uint16(low)
+
+    } else {
+        cpu.Cycles += 2
+    }
+}
+
+func (cpu *CPU) doJrCond(offset int8, cond bool) {
+    if cond {
+        cpu.Cycles += 3
+        cpu.PC = uint16(int32(cpu.PC) + int32(offset) + 2)
+    } else {
+        cpu.Cycles += 2
+    }
+}
+
+func (cpu *CPU) doJpCond(address uint16, cond bool) {
+    if cond {
+        cpu.Cycles += 4
+        cpu.PC = address
+    } else {
+        cpu.Cycles += 3
+    }
+}
+
 func (cpu *CPU) Execute(instruction Instruction) {
     switch instruction.Opcode {
         case Nop:
@@ -403,37 +447,31 @@ func (cpu *CPU) Execute(instruction Instruction) {
             cpu.PC = uint16(int32(cpu.PC) + int32(offset) + 2)
 
         case JrNz:
-            if cpu.GetFlagZ() != 0 {
-                cpu.Cycles += 3
-                offset := int8(instruction.Immediate8)
-                cpu.PC = uint16(int32(cpu.PC) + int32(offset) + 2)
-            } else {
-                cpu.Cycles += 2
-            }
+            cpu.doJrCond(int8(instruction.Immediate8), cpu.GetFlagZ() != 0)
         case JrZ:
-            if cpu.GetFlagZ() == 0 {
-                cpu.Cycles += 3
-                offset := int8(instruction.Immediate8)
-                cpu.PC = uint16(int32(cpu.PC) + int32(offset) + 2)
-            } else {
-                cpu.Cycles += 2
-            }
+            cpu.doJrCond(int8(instruction.Immediate8), cpu.GetFlagZ() == 0)
         case JrNc:
-            if cpu.GetFlagC() != 0 {
-                cpu.Cycles += 3
-                offset := int8(instruction.Immediate8)
-                cpu.PC = uint16(int32(cpu.PC) + int32(offset) + 2)
-            } else {
-                cpu.Cycles += 2
-            }
+            cpu.doJrCond(int8(instruction.Immediate8), cpu.GetFlagC() != 0)
         case JrC:
-            if cpu.GetFlagC() == 0 {
-                cpu.Cycles += 3
-                offset := int8(instruction.Immediate8)
-                cpu.PC = uint16(int32(cpu.PC) + int32(offset) + 2)
-            } else {
-                cpu.Cycles += 2
-            }
+            cpu.doJrCond(int8(instruction.Immediate8), cpu.GetFlagC() == 0)
+
+        case JpNzImmediate16:
+            cpu.doJpCond(instruction.Immediate16, cpu.GetFlagZ() != 0)
+        case JpZImmediate16:
+            cpu.doJpCond(instruction.Immediate16, cpu.GetFlagZ() == 0)
+        case JpNcImmediate16:
+            cpu.doJpCond(instruction.Immediate16, cpu.GetFlagC() != 0)
+        case JpCImmediate16:
+            cpu.doJpCond(instruction.Immediate16, cpu.GetFlagC() == 0)
+
+        case RetNz:
+            cpu.doRetCond(cpu.GetFlagZ() != 0)
+        case RetZ:
+            cpu.doRetCond(cpu.GetFlagZ() == 0)
+        case RetNc:
+            cpu.doRetCond(cpu.GetFlagC() != 0)
+        case RetC:
+            cpu.doRetCond(cpu.GetFlagC() == 0)
 
         case DisableInterrupts:
             cpu.Cycles += 1
@@ -1523,24 +1561,55 @@ func DecodeInstruction(instructions []byte) (Instruction, uint8) {
                     // return "push r16stk"
             }
 
-            /*
             if instruction >> 5 == 0b110 {
                 switch instruction & 0b111 {
-                    case 0b000: return "ret cond"
-                    case 0b010: return "jp cond, imm16"
+                    case 0b000:
+                        cond := (instruction >> 3) & 0b11
+                        opcode := RetNz
+
+                        switch cond {
+                            case 0b00: opcode = RetNz
+                            case 0b01: opcode = RetZ
+                            case 0b10: opcode = RetNc
+                            case 0b11: opcode = RetC
+                        }
+
+                        return Instruction{Opcode: opcode}, 1
+                        // return "ret cond"
+
+                    case 0b010:
+                        cond := (instruction >> 3) & 0b11
+                        imm16 := makeImm16(instructions[1:])
+                        opcode := JpNzImmediate16
+
+                        switch cond {
+                            case 0b00: opcode = JpNzImmediate16
+                            case 0b01: opcode = JpZImmediate16
+                            case 0b10: opcode = JpNcImmediate16
+                            case 0b11: opcode = JpCImmediate16
+                        }
+
+                        return Instruction{Opcode: opcode, Immediate16: imm16}, 3
+                        // return "jp cond, imm16"
+
+                    /*
                     case 0b011: return "jp imm16"
                     case 0b100: return "call cond, imm16"
                     case 0b111: return "rst tgt3"
+                    */
                 }
 
+                /*
                 switch instruction {
                     case 0b11001001: return "ret"
                     case 0b11011001: return "reti"
                     case 0b11101001: return "jp hl"
                     case 0b11001101: return "call imm16"
                 }
+                */
             }
 
+            /*
             if instruction == 0xcb {
                 // special prefix instruction
             }
