@@ -132,6 +132,11 @@ const (
     CpAR8
     CpAHLMem
 
+    PopAF
+    PopR16
+    PushR16
+    PushAF
+
     RLCA
     RLA
     RRCA
@@ -630,6 +635,55 @@ func (cpu *CPU) Execute(instruction Instruction) {
             cpu.Cycles += 1
             value := cpu.GetRegister8(instruction.R8_2)
             cpu.SetRegister8(instruction.R8_1, value)
+
+        case PopAF:
+            cpu.Cycles += 3
+            low := cpu.LoadMemory8(cpu.SP)
+            cpu.SP += 1
+            high := cpu.LoadMemory8(cpu.SP)
+            cpu.SP += 1
+            cpu.F = low
+            cpu.A = high
+
+        case PopR16:
+            cpu.Cycles += 3
+            low := cpu.LoadMemory8(cpu.SP)
+            cpu.SP += 1
+            high := cpu.LoadMemory8(cpu.SP)
+            cpu.SP += 1
+
+            full := (uint16(high) << 8) | uint16(low)
+
+            switch instruction.R16_1 {
+                case 0: cpu.BC = full
+                case 1: cpu.DE = full
+                case 2: cpu.HL = full
+            }
+
+        case PushR16:
+            cpu.Cycles += 4
+
+            var value uint16
+
+            switch instruction.R16_1 {
+                case 0: value = cpu.BC
+                case 1: value = cpu.DE
+                case 2: value = cpu.HL
+            }
+
+            low := uint8(value & 0xff)
+            high := uint8(value >> 8)
+            cpu.SP -= 1
+            cpu.StoreMemory(cpu.SP, high)
+            cpu.SP -= 1
+            cpu.StoreMemory(cpu.SP, low)
+
+        case PushAF:
+            cpu.Cycles += 4
+            cpu.SP -= 1
+            cpu.StoreMemory(cpu.SP, cpu.A)
+            cpu.SP -= 1
+            cpu.StoreMemory(cpu.SP, cpu.F)
 
         case AddAR8:
             cpu.Cycles += 1
@@ -1449,12 +1503,27 @@ func DecodeInstruction(instructions []byte) (Instruction, uint8) {
                     // return "ei"
             }
 
-            /*
             switch instruction & 0b1111 {
-                case 0b0001: return "pop r16stk"
-                case 0b0101: return "push r16stk"
+                case 0b0001:
+                    r16 := R16((instruction >> 4) & 0b11)
+                    if r16 == 3 {
+                        return Instruction{Opcode: PopAF}, 1
+                    }
+
+                    return Instruction{Opcode: PopR16, R16_1: r16}, 1
+                    // return "pop r16stk"
+
+                case 0b0101:
+                    r16 := R16((instruction >> 4) & 0b11)
+                    if r16 == 3 {
+                        return Instruction{Opcode: PushAF}, 1
+                    }
+
+                    return Instruction{Opcode: PushR16, R16_1: r16}, 1
+                    // return "push r16stk"
             }
 
+            /*
             if instruction >> 5 == 0b110 {
                 switch instruction & 0b111 {
                     case 0b000: return "ret cond"
