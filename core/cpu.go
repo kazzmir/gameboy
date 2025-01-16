@@ -156,6 +156,13 @@ const (
     JrNc
     JrC
 
+    CallNzImmediate16
+    CallZImmediate16
+    CallNcImmediate16
+    CallCImmediate16
+
+    JpImmediate16
+
     JpNzImmediate16
     JpZImmediate16
     JpNcImmediate16
@@ -342,6 +349,27 @@ func (cpu *CPU) doRetCond(cond bool) {
     }
 }
 
+func (cpu *CPU) doCallCond(address uint16, cond bool) {
+    if cond {
+        cpu.Cycles += 6
+
+        // push address of instruction after call onto stack
+        returnAddress := cpu.PC + 3
+        low := uint8(returnAddress & 0xff)
+        high := uint8((returnAddress >> 8) & 0xff)
+
+        cpu.SP -= 1
+        cpu.StoreMemory(cpu.SP, high)
+        cpu.SP -= 1
+        cpu.StoreMemory(cpu.SP, low)
+
+        cpu.PC = address
+
+    } else {
+        cpu.Cycles += 3
+    }
+}
+
 func (cpu *CPU) doJrCond(offset int8, cond bool) {
     if cond {
         cpu.Cycles += 3
@@ -446,6 +474,15 @@ func (cpu *CPU) Execute(instruction Instruction) {
             offset := int8(instruction.Immediate8)
             cpu.PC = uint16(int32(cpu.PC) + int32(offset) + 2)
 
+        case CallNzImmediate16:
+            cpu.doCallCond(instruction.Immediate16, cpu.GetFlagZ() != 0)
+        case CallZImmediate16:
+            cpu.doCallCond(instruction.Immediate16, cpu.GetFlagZ() == 0)
+        case CallNcImmediate16:
+            cpu.doCallCond(instruction.Immediate16, cpu.GetFlagC() != 0)
+        case CallCImmediate16:
+            cpu.doCallCond(instruction.Immediate16, cpu.GetFlagC() == 0)
+
         case JrNz:
             cpu.doJrCond(int8(instruction.Immediate8), cpu.GetFlagZ() != 0)
         case JrZ:
@@ -454,6 +491,10 @@ func (cpu *CPU) Execute(instruction Instruction) {
             cpu.doJrCond(int8(instruction.Immediate8), cpu.GetFlagC() != 0)
         case JrC:
             cpu.doJrCond(int8(instruction.Immediate8), cpu.GetFlagC() == 0)
+
+        case JpImmediate16:
+            cpu.Cycles += 4
+            cpu.PC = instruction.Immediate16
 
         case JpNzImmediate16:
             cpu.doJpCond(instruction.Immediate16, cpu.GetFlagZ() != 0)
@@ -1592,11 +1633,31 @@ func DecodeInstruction(instructions []byte) (Instruction, uint8) {
                         return Instruction{Opcode: opcode, Immediate16: imm16}, 3
                         // return "jp cond, imm16"
 
-                    /*
-                    case 0b011: return "jp imm16"
-                    case 0b100: return "call cond, imm16"
-                    case 0b111: return "rst tgt3"
-                    */
+                    case 0b011:
+                        imm16 := makeImm16(instructions[1:])
+                        return Instruction{Opcode: JpImmediate16, Immediate16: imm16}, 3
+                        // return "jp imm16"
+
+                    case 0b100:
+                        cond := (instruction >> 3) & 0b11
+                        imm16 := makeImm16(instructions[1:])
+                        opcode := CallNzImmediate16
+
+                        switch cond {
+                            case 0b00: opcode = CallNzImmediate16
+                            case 0b01: opcode = CallZImmediate16
+                            case 0b10: opcode = CallNcImmediate16
+                            case 0b11: opcode = CallCImmediate16
+                        }
+
+                        return Instruction{Opcode: opcode, Immediate16: imm16}, 3
+
+                        // return "call cond, imm16"
+
+                        /*
+                    case 0b111:
+                        return "rst tgt3"
+                        */
                 }
 
                 /*
