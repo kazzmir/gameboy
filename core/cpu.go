@@ -21,6 +21,8 @@ type CPU struct {
 
     Stopped bool
     Halted bool
+
+    Ram []uint8
 }
 
 type Opcode int
@@ -265,12 +267,11 @@ func RotateLeft(value uint8) (uint8, uint8) {
 }
 
 func (cpu *CPU) StoreMemory(address uint16, value uint8) {
-    // TODO
+    cpu.Ram[address] = value
 }
 
 func (cpu *CPU) LoadMemory8(address uint16) uint8 {
-    // TODO
-    return 0
+    return cpu.Ram[address]
 }
 
 func (cpu *CPU) AddHL(value uint16) {
@@ -406,12 +407,15 @@ func (cpu *CPU) Execute(instruction Instruction) {
         case LoadBCImmediate:
             cpu.Cycles += 3
             cpu.BC = instruction.Immediate16
+            cpu.PC += 3
         case LoadDEImmediate:
             cpu.Cycles += 3
             cpu.DE = instruction.Immediate16
+            cpu.PC += 3
         case LoadHLImmediate:
             cpu.Cycles += 3
             cpu.HL = instruction.Immediate16
+            cpu.PC += 3
         case LoadSPImmediate:
             cpu.Cycles += 3
             cpu.SP = instruction.Immediate16
@@ -424,6 +428,7 @@ func (cpu *CPU) Execute(instruction Instruction) {
         case StoreHLMemA:
             cpu.Cycles += 2
             cpu.StoreMemory(cpu.HL, cpu.A)
+            cpu.PC += 1
         case StoreSPMemA:
             cpu.Cycles += 2
             cpu.StoreMemory(cpu.SP, cpu.A)
