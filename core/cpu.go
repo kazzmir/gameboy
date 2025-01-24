@@ -161,6 +161,8 @@ const (
     CallNcImmediate16
     CallCImmediate16
 
+    CallResetVector
+
     JpImmediate16
 
     JpNzImmediate16
@@ -482,6 +484,23 @@ func (cpu *CPU) Execute(instruction Instruction) {
             cpu.doCallCond(instruction.Immediate16, cpu.GetFlagC() != 0)
         case CallCImmediate16:
             cpu.doCallCond(instruction.Immediate16, cpu.GetFlagC() == 0)
+
+        case CallResetVector:
+            cpu.Cycles += 4
+
+            address := instruction.Immediate8
+
+            // push address of instruction after call onto stack
+            returnAddress := cpu.PC + 1
+            low := uint8(returnAddress & 0xff)
+            high := uint8((returnAddress >> 8) & 0xff)
+
+            cpu.SP -= 1
+            cpu.StoreMemory(cpu.SP, high)
+            cpu.SP -= 1
+            cpu.StoreMemory(cpu.SP, low)
+
+            cpu.PC = uint16(address)
 
         case JrNz:
             cpu.doJrCond(int8(instruction.Immediate8), cpu.GetFlagZ() != 0)
@@ -1654,10 +1673,10 @@ func DecodeInstruction(instructions []byte) (Instruction, uint8) {
 
                         // return "call cond, imm16"
 
-                        /*
                     case 0b111:
-                        return "rst tgt3"
-                        */
+                        address := uint8((instruction >> 3) & 0b111)
+                        return Instruction{Opcode: CallResetVector, Immediate8: address}, 1
+                        // return "rst tgt3"
                 }
 
                 /*
