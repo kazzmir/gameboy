@@ -161,9 +161,14 @@ const (
     CallNcImmediate16
     CallCImmediate16
 
+    CallImmediate16
     CallResetVector
 
+    Return
+    ReturnFromInterrupt
+
     JpImmediate16
+    JpHL
 
     JpNzImmediate16
     JpZImmediate16
@@ -335,17 +340,28 @@ func (cpu *CPU) SetRegister8(r8 R8, value uint8) {
     }
 }
 
+func (cpu *CPU) Pop16() uint16 {
+    low := cpu.LoadMemory8(cpu.SP)
+    cpu.SP += 1
+    high := cpu.LoadMemory8(cpu.SP)
+    cpu.SP += 1
+    return (uint16(high) << 8) | uint16(low)
+}
+
+func (cpu *CPU) Push16(value uint16) {
+    low := uint8(value & 0xff)
+    high := uint8((value >> 8) & 0xff)
+
+    cpu.SP -= 1
+    cpu.StoreMemory(cpu.SP, high)
+    cpu.SP -= 1
+    cpu.StoreMemory(cpu.SP, low)
+}
+
 func (cpu *CPU) doRetCond(cond bool) {
     if cond {
         cpu.Cycles += 5
-
-        // POP PC
-        low := cpu.LoadMemory8(cpu.SP)
-        cpu.SP += 1
-        high := cpu.LoadMemory8(cpu.SP)
-        cpu.SP += 1
-        cpu.PC = (uint16(high) << 8) | uint16(low)
-
+        cpu.PC = cpu.Pop16()
     } else {
         cpu.Cycles += 2
     }
@@ -357,14 +373,7 @@ func (cpu *CPU) doCallCond(address uint16, cond bool) {
 
         // push address of instruction after call onto stack
         returnAddress := cpu.PC + 3
-        low := uint8(returnAddress & 0xff)
-        high := uint8((returnAddress >> 8) & 0xff)
-
-        cpu.SP -= 1
-        cpu.StoreMemory(cpu.SP, high)
-        cpu.SP -= 1
-        cpu.StoreMemory(cpu.SP, low)
-
+        cpu.Push16(returnAddress)
         cpu.PC = address
 
     } else {
@@ -485,6 +494,13 @@ func (cpu *CPU) Execute(instruction Instruction) {
         case CallCImmediate16:
             cpu.doCallCond(instruction.Immediate16, cpu.GetFlagC() == 0)
 
+        case CallImmediate16:
+            cpu.Cycles += 6
+            address := instruction.Immediate16
+            returnAddress := cpu.PC + 3
+            cpu.Push16(returnAddress)
+            cpu.PC = address
+
         case CallResetVector:
             cpu.Cycles += 4
 
@@ -492,15 +508,18 @@ func (cpu *CPU) Execute(instruction Instruction) {
 
             // push address of instruction after call onto stack
             returnAddress := cpu.PC + 1
-            low := uint8(returnAddress & 0xff)
-            high := uint8((returnAddress >> 8) & 0xff)
-
-            cpu.SP -= 1
-            cpu.StoreMemory(cpu.SP, high)
-            cpu.SP -= 1
-            cpu.StoreMemory(cpu.SP, low)
-
+            cpu.Push16(returnAddress)
             cpu.PC = uint16(address)
+
+        // return from a call
+        case Return:
+            cpu.Cycles += 4
+            cpu.PC = cpu.Pop16()
+
+        case ReturnFromInterrupt:
+            cpu.Cycles += 4
+            cpu.PC = cpu.Pop16()
+            cpu.InterruptFlag = true
 
         case JrNz:
             cpu.doJrCond(int8(instruction.Immediate8), cpu.GetFlagZ() != 0)
@@ -510,6 +529,10 @@ func (cpu *CPU) Execute(instruction Instruction) {
             cpu.doJrCond(int8(instruction.Immediate8), cpu.GetFlagC() != 0)
         case JrC:
             cpu.doJrCond(int8(instruction.Immediate8), cpu.GetFlagC() == 0)
+
+        case JpHL:
+            cpu.Cycles += 1
+            cpu.PC = cpu.HL
 
         case JpImmediate16:
             cpu.Cycles += 4
@@ -769,12 +792,7 @@ func (cpu *CPU) Execute(instruction Instruction) {
                 case 2: value = cpu.HL
             }
 
-            low := uint8(value & 0xff)
-            high := uint8(value >> 8)
-            cpu.SP -= 1
-            cpu.StoreMemory(cpu.SP, high)
-            cpu.SP -= 1
-            cpu.StoreMemory(cpu.SP, low)
+            cpu.Push16(value)
 
         case PushAF:
             cpu.Cycles += 4
@@ -1679,14 +1697,23 @@ func DecodeInstruction(instructions []byte) (Instruction, uint8) {
                         // return "rst tgt3"
                 }
 
-                /*
                 switch instruction {
-                    case 0b11001001: return "ret"
-                    case 0b11011001: return "reti"
-                    case 0b11101001: return "jp hl"
-                    case 0b11001101: return "call imm16"
+                    case 0b11001001:
+                        return Instruction{Opcode: Return}, 1
+                        // return "ret"
+                    case 0b11011001:
+                        return Instruction{Opcode: ReturnFromInterrupt}, 1
+                        // return "reti"
+                    case 0b11101001:
+                        return Instruction{Opcode: JpHL}, 1
+
+                        // return "jp hl"
+
+                    case 0b11001101:
+                        imm16 := makeImm16(instructions[1:])
+                        return Instruction{Opcode: CallImmediate16, Immediate16: imm16}, 3
+                        // return "call imm16"
                 }
-                */
             }
 
             /*
