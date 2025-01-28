@@ -68,32 +68,32 @@ func runTest(test map[string]interface{}) bool {
     success := true
 
     if cpu.A != expected.A {
-        log.Printf("A register mismatch: %v != %v", cpu.A, expected.A)
+        log.Printf("A register mismatch: actual %v != expected %v", cpu.A, expected.A)
         success = false
     }
 
     if cpu.BC != expected.BC {
-        log.Printf("BC register mismatch: %v != %v", cpu.BC, expected.BC)
+        log.Printf("BC register mismatch: actual %v != expected %v", cpu.BC, expected.BC)
         success = false
     }
 
     if cpu.DE != expected.DE {
-        log.Printf("DE register mismatch: %v != %v", cpu.DE, expected.DE)
+        log.Printf("DE register mismatch: actual %v != expected %v", cpu.DE, expected.DE)
         success = false
     }
 
     if cpu.HL != expected.HL {
-        log.Printf("HL register mismatch: %v != %v", cpu.HL, expected.HL)
+        log.Printf("HL register mismatch: actual %v != expected %v", cpu.HL, expected.HL)
         success = false
     }
 
     if cpu.F != expected.F {
-        log.Printf("F register mismatch: %v != %v", cpu.F, expected.F)
+        log.Printf("F register mismatch: actual %v != expected %v", cpu.F, expected.F)
         success = false
     }
 
     if cpu.PC != expected.PC {
-        log.Printf("PC register mismatch: %v != %v", cpu.PC, expected.PC)
+        log.Printf("PC register mismatch: actual %v != expected %v", cpu.PC, expected.PC)
         success = false
     }
 
