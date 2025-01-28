@@ -40,7 +40,7 @@ func loadData(data map[string]interface{}) core.CPU {
     return cpu
 }
 
-func runTest(test map[string]interface{}) {
+func runTest(test map[string]interface{}) bool {
     name := test["name"]
     initial := test["initial"].(map[string]interface{})
     final := test["final"].(map[string]interface{})
@@ -48,52 +48,61 @@ func runTest(test map[string]interface{}) {
     _ = cycles
 
     log.Printf("Running test: %v", name)
+    // log.Printf("Test: %v", test)
 
     cpu := loadData(initial)
 
-    for range 10000 {
-        instruction, amount := core.DecodeInstruction(cpu.Ram[cpu.PC:])
-        if instruction.Opcode == core.Nop {
-            break
-        }
-        log.Printf("Instruction: %+v amount: %v", instruction, amount)
-        cpu.Execute(instruction)
-    }
+    // cpu.PC += 1
+
+    // run one instruction
+    instruction, amount := core.DecodeInstruction(cpu.Ram[cpu.PC:])
+    log.Printf("Instruction: %+v amount: %v", instruction, amount)
+    cpu.Execute(instruction)
 
     // log.Printf("%+v", cpu)
 
     expected := loadData(final)
 
+    success := true
+
     if cpu.A != expected.A {
         log.Printf("A register mismatch: %v != %v", cpu.A, expected.A)
+        success = false
     }
 
     if cpu.BC != expected.BC {
         log.Printf("BC register mismatch: %v != %v", cpu.BC, expected.BC)
+        success = false
     }
 
     if cpu.DE != expected.DE {
         log.Printf("DE register mismatch: %v != %v", cpu.DE, expected.DE)
+        success = false
     }
 
     if cpu.HL != expected.HL {
         log.Printf("HL register mismatch: %v != %v", cpu.HL, expected.HL)
+        success = false
     }
 
     if cpu.F != expected.F {
         log.Printf("F register mismatch: %v != %v", cpu.F, expected.F)
+        success = false
     }
 
     if cpu.PC != expected.PC {
         log.Printf("PC register mismatch: %v != %v", cpu.PC, expected.PC)
+        success = false
     }
 
     for i, value := range cpu.Ram {
         if value != expected.Ram[i] {
             log.Printf("Ram mismatch at address 0x%x: %v != %v", i, value, expected.Ram[i])
+            success = false
         }
     }
 
+    return success
 }
 
 func doTest(path string) error {
@@ -125,10 +134,13 @@ func doTest(path string) error {
         if !ok {
             log.Printf("Invalid test data type: %v", reflect.TypeOf(test))
         } else {
-            runTest(testData)
+            if !runTest(testData) {
+                log.Printf("Test data: %+v", testData)
+                break
+            }
         }
 
-        break
+        // break
     }
 
     return nil

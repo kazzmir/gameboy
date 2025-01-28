@@ -188,6 +188,32 @@ const (
     Unknown
 )
 
+func (opcode Opcode) String() string {
+    switch opcode {
+        case Nop: return "nop"
+        case LoadBCImmediate: return "ld bc, nn"
+        case LoadDEImmediate: return "ld de, nn"
+        case LoadHLImmediate: return "ld hl, nn"
+        case LoadSPImmediate: return "ld sp, nn"
+
+        case Load8Immediate: return "ld r8, n"
+        case StoreHLImmediate: return "ld (hl), n"
+
+        case LdHlSpImmediate8: return "ld hl, sp+n"
+
+        case LoadR8R8: return "ld r8, r8"
+
+        case StoreBCMemA: return "ld (bc), a"
+        case StoreDEMemA: return "ld (de), a"
+        case StoreHLMemA: return "ld (hl), a"
+        case StoreSPMemA: return "ld (sp), a"
+
+        // todo rest
+    }
+
+    return "?"
+}
+
 type R16 uint8
 const (
     R16BC R16 = 0
@@ -401,9 +427,11 @@ func (cpu *CPU) doJpCond(address uint16, cond bool) {
 }
 
 func (cpu *CPU) Execute(instruction Instruction) {
+    // log.Printf("Executing instruction: %+v", instruction)
     switch instruction.Opcode {
         case Nop:
             cpu.Cycles += 1
+            cpu.PC += 1
         case LoadBCImmediate:
             cpu.Cycles += 3
             cpu.BC = instruction.Immediate16
