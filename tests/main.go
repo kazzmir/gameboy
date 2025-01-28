@@ -7,6 +7,8 @@ import (
     "reflect"
     "compress/gzip"
     "encoding/json"
+    "path/filepath"
+    "strings"
 
     "github.com/kazzmir/gameboy/core"
 )
@@ -147,9 +149,18 @@ func doTest(path string) error {
 }
 
 func main(){
-    path := "test-files/00.json.gz"
-    err := doTest(path)
+    files, err := os.ReadDir("test-files")
     if err != nil {
-        log.Printf("Error: %v", err)
+        log.Printf("Could not read test files: %v", err)
+        return
+    }
+    for _, file := range files {
+        name := file.Name()
+        if strings.HasSuffix(name, ".json.gz") {
+            err := doTest(filepath.Join("test-files", file.Name()))
+            if err != nil {
+                log.Printf("Error: %v", err)
+            }
+        }
     }
 }
