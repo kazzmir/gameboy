@@ -235,6 +235,27 @@ func (opcode Opcode) String() string {
         case DecHL: return "dec hl"
         case DecSP: return "dec sp"
 
+        case RLCA: return "rlca"
+        case RLA: return "rla"
+        case RRCA: return "rrca"
+        case RRA: return "rra"
+
+        case Stop: return "stop"
+        case Halt: return "halt"
+
+        case RetNz: return "ret nz"
+        case RetZ: return "ret z"
+        case RetNc: return "ret nc"
+        case RetC: return "ret c"
+
+        case JR: return "jr n"
+        case JrNz: return "jr nz, n"
+        case JrZ: return "jr z, n"
+        case JrNc: return "jr nc, n"
+        case JrC: return "jr c, n"
+
+        case StoreSPMem16: return "ld (nn), sp"
+
         // todo rest
     }
 
@@ -509,6 +530,8 @@ func (cpu *CPU) Execute(instruction Instruction) {
 
             cpu.StoreMemory(instruction.Immediate16, value1)
             cpu.StoreMemory(instruction.Immediate16+1, value2)
+
+            cpu.PC += 3
 
         case LdSpHl:
             cpu.Cycles += 2
@@ -842,6 +865,7 @@ func (cpu *CPU) Execute(instruction Instruction) {
         case Load8Immediate:
             cpu.Cycles += 2
             cpu.SetRegister8(instruction.R8_1, instruction.Immediate8)
+            cpu.PC += 2
 
         case StoreHLImmediate:
             cpu.Cycles += 3
@@ -1315,6 +1339,8 @@ func (cpu *CPU) Execute(instruction Instruction) {
             cpu.SetFlagH(0)
             cpu.SetFlagN(0)
             cpu.SetFlagC(carry)
+
+            cpu.PC += 1
 
         case RRCA:
             cpu.Cycles += 1
