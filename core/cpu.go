@@ -263,6 +263,14 @@ func (opcode Opcode) String() string {
 
         case AddSpImmediate8: return "add sp, n"
 
+        case LdImmediate16A: return "ld (nn), a"
+        case LdAImmediate16: return "ld a, (nn)"
+
+        case LoadAMemBC: return "ld a, (bc)"
+        case LoadAMemDE: return "ld a, (de)"
+        case LoadAMemHL: return "ld a, (hl)"
+        case LoadAMemSP: return "ld a, (sp)"
+
         // todo rest
     }
 
@@ -520,15 +528,19 @@ func (cpu *CPU) Execute(instruction Instruction) {
         case LoadAMemBC:
             cpu.Cycles += 2
             cpu.A = cpu.LoadMemory8(cpu.BC)
+            cpu.PC += 1
         case LoadAMemDE:
             cpu.Cycles += 2
             cpu.A = cpu.LoadMemory8(cpu.DE)
+            cpu.PC += 1
         case LoadAMemHL:
             cpu.Cycles += 2
             cpu.A = cpu.LoadMemory8(cpu.HL)
+            cpu.PC += 1
         case LoadAMemSP:
             cpu.Cycles += 2
             cpu.A = cpu.LoadMemory8(cpu.SP)
+            cpu.PC += 1
         case StoreSPMem16:
             cpu.Cycles += 5
 
@@ -567,10 +579,12 @@ func (cpu *CPU) Execute(instruction Instruction) {
         case LdImmediate16A:
             cpu.Cycles += 4
             cpu.StoreMemory(instruction.Immediate16, cpu.A)
+            cpu.PC += 3
 
         case LdAImmediate16:
             cpu.Cycles += 4
             cpu.A = cpu.LoadMemory8(instruction.Immediate16)
+            cpu.PC += 3
 
         case JR:
             cpu.Cycles += 3
@@ -697,11 +711,26 @@ func (cpu *CPU) Execute(instruction Instruction) {
             cpu.Cycles += 1
             b := cpu.BC >> 8
             c := uint8(cpu.BC & 0xff)
+
+            lower := c & 0b1111
+
+            h := uint8(0)
+            if lower == 0b1111 {
+                h = 1
+            }
+            cpu.SetFlagH(h)
+
             c += 1
-            cpu.SetFlagH((c & 0b10000))
             cpu.SetFlagN(0)
-            cpu.SetFlagZ(c)
+
+            z := uint8(0)
+            if c == 0 {
+                z = 1
+            }
+            cpu.SetFlagZ(z)
+
             cpu.BC = (uint16(b) << 8) | uint16(c)
+            cpu.PC += 1
 
         case Inc8D:
             cpu.Cycles += 1
@@ -884,15 +913,19 @@ func (cpu *CPU) Execute(instruction Instruction) {
         case DecBC:
             cpu.Cycles += 2
             cpu.BC -= 1
+            cpu.PC += 1
         case DecDE:
             cpu.Cycles += 2
             cpu.DE -= 1
+            cpu.PC += 1
         case DecHL:
             cpu.Cycles += 2
             cpu.HL -= 1
+            cpu.PC += 1
         case DecSP:
             cpu.Cycles += 2
             cpu.SP -= 1
+            cpu.PC += 1
 
         case Load8Immediate:
             cpu.Cycles += 2

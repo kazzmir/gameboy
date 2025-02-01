@@ -106,7 +106,7 @@ func runTest(test map[string]interface{}) bool {
     }
 
     if !success {
-        log.Printf("Test failed: %v. Instruction %v", name, instruction)
+        log.Printf("Test failed: %v. Instruction %+v", name, instruction)
     }
 
     return success
