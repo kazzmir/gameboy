@@ -811,10 +811,22 @@ func (cpu *CPU) Execute(instruction Instruction) {
             cpu.Cycles += 1
             d := uint8(cpu.DE >> 8)
             e := uint8(cpu.DE & 0xff)
-            cpu.SetFlagH(^(d & 0b1111))
+
+            h := uint8(0)
+            if d & 0b1111 == 0 {
+                h = 1
+            }
+
+            cpu.SetFlagH(h)
             d -= 1
             cpu.SetFlagN(1)
-            cpu.SetFlagZ(d)
+
+            z := uint8(0)
+            if d == 0 {
+                z = 1
+            }
+
+            cpu.SetFlagZ(z)
             cpu.DE = (uint16(d) << 8) | uint16(e)
             cpu.PC += 1
 
@@ -1387,6 +1399,8 @@ func (cpu *CPU) Execute(instruction Instruction) {
             cpu.SetFlagH(0)
             cpu.SetFlagN(0)
             cpu.SetFlagC(newCarry)
+
+            cpu.PC += 1
 
         case RRA:
             cpu.Cycles += 1
