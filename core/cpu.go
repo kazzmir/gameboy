@@ -204,7 +204,7 @@ func (opcode Opcode) String() string {
 
         case StoreBCMemA: return "ld (bc), a"
         case StoreDEMemA: return "ld (de), a"
-        case StoreHLMemA: return "ld (hl), a"
+        case StoreHLMemA: return "ldi (hl), a"
         case StoreSPMemA: return "ld (sp), a"
 
         case IncBC: return "inc bc"
@@ -477,6 +477,7 @@ func (cpu *CPU) doJrCond(offset int8, cond bool) {
         cpu.PC = uint16(int32(cpu.PC) + int32(offset) + 2)
     } else {
         cpu.Cycles += 2
+        cpu.PC += 2
     }
 }
 
@@ -521,6 +522,7 @@ func (cpu *CPU) Execute(instruction Instruction) {
         case StoreHLMemA:
             cpu.Cycles += 2
             cpu.StoreMemory(cpu.HL, cpu.A)
+            cpu.HL += 1
             cpu.PC += 1
         case StoreSPMemA:
             cpu.Cycles += 2
@@ -628,13 +630,13 @@ func (cpu *CPU) Execute(instruction Instruction) {
             cpu.InterruptFlag = true
 
         case JrNz:
-            cpu.doJrCond(int8(instruction.Immediate8), cpu.GetFlagZ() != 0)
-        case JrZ:
             cpu.doJrCond(int8(instruction.Immediate8), cpu.GetFlagZ() == 0)
+        case JrZ:
+            cpu.doJrCond(int8(instruction.Immediate8), cpu.GetFlagZ() == 1)
         case JrNc:
-            cpu.doJrCond(int8(instruction.Immediate8), cpu.GetFlagC() != 0)
-        case JrC:
             cpu.doJrCond(int8(instruction.Immediate8), cpu.GetFlagC() == 0)
+        case JrC:
+            cpu.doJrCond(int8(instruction.Immediate8), cpu.GetFlagC() == 1)
 
         case JpHL:
             cpu.Cycles += 1
@@ -645,22 +647,22 @@ func (cpu *CPU) Execute(instruction Instruction) {
             cpu.PC = instruction.Immediate16
 
         case JpNzImmediate16:
-            cpu.doJpCond(instruction.Immediate16, cpu.GetFlagZ() != 0)
-        case JpZImmediate16:
             cpu.doJpCond(instruction.Immediate16, cpu.GetFlagZ() == 0)
+        case JpZImmediate16:
+            cpu.doJpCond(instruction.Immediate16, cpu.GetFlagZ() == 1)
         case JpNcImmediate16:
-            cpu.doJpCond(instruction.Immediate16, cpu.GetFlagC() != 0)
-        case JpCImmediate16:
             cpu.doJpCond(instruction.Immediate16, cpu.GetFlagC() == 0)
+        case JpCImmediate16:
+            cpu.doJpCond(instruction.Immediate16, cpu.GetFlagC() == 1)
 
         case RetNz:
-            cpu.doRetCond(cpu.GetFlagZ() != 0)
-        case RetZ:
             cpu.doRetCond(cpu.GetFlagZ() == 0)
+        case RetZ:
+            cpu.doRetCond(cpu.GetFlagZ() == 1)
         case RetNc:
-            cpu.doRetCond(cpu.GetFlagC() != 0)
-        case RetC:
             cpu.doRetCond(cpu.GetFlagC() == 0)
+        case RetC:
+            cpu.doRetCond(cpu.GetFlagC() == 1)
 
         case DisableInterrupts:
             cpu.Cycles += 1
@@ -759,12 +761,24 @@ func (cpu *CPU) Execute(instruction Instruction) {
             cpu.Cycles += 1
             d := uint8(cpu.DE >> 8)
             e := uint8(cpu.DE & 0xff)
-            e += 1
-            cpu.SetFlagH(e & 0b10000)
-            cpu.SetFlagN(0)
-            cpu.SetFlagZ(e)
-            cpu.DE = (uint16(d) << 8) | uint16(e)
 
+            h := uint8(0)
+            if e & 0b1111 == 0b1111 {
+                h = 1
+            }
+            cpu.SetFlagH(h)
+
+            e += 1
+            cpu.SetFlagN(0)
+
+            z := uint8(0)
+            if e == 0 {
+                z = 1
+            }
+
+            cpu.SetFlagZ(z)
+            cpu.DE = (uint16(d) << 8) | uint16(e)
+            cpu.PC += 1
 
         case Inc8H:
             cpu.Cycles += 1
@@ -876,10 +890,22 @@ func (cpu *CPU) Execute(instruction Instruction) {
             cpu.Cycles += 1
             d := uint8(cpu.DE >> 8)
             e := uint8(cpu.DE & 0xff)
-            cpu.SetFlagH(^(e & 0b1111))
+
+            h := uint8(0)
+            if e & 0b1111 == 0 {
+                h = 1
+            }
+
+            cpu.SetFlagH(h)
             e -= 1
             cpu.SetFlagN(1)
-            cpu.SetFlagZ(e)
+
+            z := uint8(0)
+            if e == 0 {
+                z = 1
+            }
+
+            cpu.SetFlagZ(z)
             cpu.DE = (uint16(d) << 8) | uint16(e)
             cpu.PC += 1
 
@@ -1460,9 +1486,11 @@ func (cpu *CPU) Execute(instruction Instruction) {
             cpu.SetFlagH(0)
             cpu.SetFlagN(0)
             cpu.SetFlagC(newCarry)
+            cpu.PC += 1
 
         case Stop:
             cpu.Stopped = true
+            cpu.PC += 1
 
         case Halt:
             cpu.Halted = true
@@ -1596,7 +1624,10 @@ func DecodeInstruction(instructions []byte) (Instruction, uint8) {
     switch block {
         case 0b00:
             switch instruction & 0b1111 {
-                case 0b0000: return Instruction{Opcode: Nop}, 1
+                case 0b0000:
+                    if instruction == 0b00000000 {
+                        return Instruction{Opcode: Nop}, 1
+                    }
                 case 0b0001:
                     r16 := (instruction >> 4) & 0b11
                     return makeLoadR16Imm16Instruction(R16(r16), makeImm16(instructions[1:])), 3
