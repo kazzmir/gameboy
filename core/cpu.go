@@ -1563,8 +1563,11 @@ func DecodeInstruction(instructions []byte) (Instruction, uint8) {
                     //return "ld a, [r16mem]"
 
                 case 0b1000:
-                    immediate := makeImm16(instructions[1:])
-                    return Instruction{Opcode: StoreSPMem16, Immediate16: immediate}, 3
+                    // ambiguous with jr n
+                    if instruction == 0b00001000 {
+                        immediate := makeImm16(instructions[1:])
+                        return Instruction{Opcode: StoreSPMem16, Immediate16: immediate}, 3
+                    }
 
                     //return "ld [imm16], sp"
 

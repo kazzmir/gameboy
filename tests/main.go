@@ -49,7 +49,7 @@ func runTest(test map[string]interface{}) bool {
     cycles := test["cycles"]
     _ = cycles
 
-    log.Printf("Running test: %v", name)
+    // log.Printf("Running test: %v", name)
     // log.Printf("Test: %v", test)
 
     cpu := loadData(initial)
@@ -58,7 +58,8 @@ func runTest(test map[string]interface{}) bool {
 
     // run one instruction
     instruction, amount := core.DecodeInstruction(cpu.Ram[cpu.PC:])
-    log.Printf("Instruction: %+v amount: %v", instruction, amount)
+    _ = amount
+    // log.Printf("Instruction: %+v amount: %v", instruction, amount)
     cpu.Execute(instruction)
 
     // log.Printf("%+v", cpu)
@@ -102,6 +103,10 @@ func runTest(test map[string]interface{}) bool {
             log.Printf("Ram mismatch at address 0x%x: %v != %v", i, value, expected.Ram[i])
             success = false
         }
+    }
+
+    if !success {
+        log.Printf("Test failed: %v. Instruction %v", name, instruction)
     }
 
     return success
