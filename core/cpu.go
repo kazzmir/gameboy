@@ -256,6 +256,13 @@ func (opcode Opcode) String() string {
 
         case StoreSPMem16: return "ld (nn), sp"
 
+        case AddHLBC: return "add hl, bc"
+        case AddHLDE: return "add hl, de"
+        case AddHLHL: return "add hl, hl"
+        case AddHLSP: return "add hl, sp"
+
+        case AddSpImmediate8: return "add sp, n"
+
         // todo rest
     }
 
@@ -700,11 +707,24 @@ func (cpu *CPU) Execute(instruction Instruction) {
             cpu.Cycles += 1
             d := uint8(cpu.DE >> 8)
             e := uint8(cpu.DE & 0xff)
+
+            lower := d & 0b1111
+
+            h := uint8(0)
+            if lower == 0b1111 {
+                h = 1
+            }
+            cpu.SetFlagH(h)
+
             d += 1
-            cpu.SetFlagH(d & 0b10000)
             cpu.SetFlagN(0)
-            cpu.SetFlagZ(d)
+            z := uint8(0)
+            if d == 0 {
+                z = 1
+            }
+            cpu.SetFlagZ(z)
             cpu.DE = (uint16(d) << 8) | uint16(e)
+            cpu.PC += 1
 
         case Inc8E:
             cpu.Cycles += 1
@@ -1311,15 +1331,19 @@ func (cpu *CPU) Execute(instruction Instruction) {
         case AddHLBC:
             cpu.Cycles += 2
             cpu.AddHL(cpu.BC)
+            cpu.PC += 1
         case AddHLDE:
             cpu.Cycles += 2
             cpu.AddHL(cpu.DE)
+            cpu.PC += 1
         case AddHLHL:
             cpu.Cycles += 2
             cpu.AddHL(cpu.HL)
+            cpu.PC += 1
         case AddHLSP:
             cpu.Cycles += 2
             cpu.AddHL(cpu.SP)
+            cpu.PC += 1
 
         case CPL:
             cpu.Cycles += 1
