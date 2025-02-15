@@ -254,6 +254,8 @@ func (opcode Opcode) String() string {
         case JrNc: return "jr nc, n"
         case JrC: return "jr c, n"
 
+        case DAA: return "daa"
+
         case StoreSPMem16: return "ld (nn), sp"
 
         case AddHLBC: return "add hl, bc"
@@ -327,6 +329,10 @@ func (cpu *CPU) GetFlagC() uint8 {
 
 func (cpu *CPU) GetFlagZ() uint8 {
     return (cpu.F >> 7) & 0b1
+}
+
+func (cpu *CPU) GetFlagH() uint8 {
+    return (cpu.F >> 5) & 0b1
 }
 
 func (cpu *CPU) SetFlagH(value uint8) {
@@ -927,10 +933,22 @@ func (cpu *CPU) Execute(instruction Instruction) {
             cpu.Cycles += 1
             h := uint8(cpu.HL >> 8)
             l := uint8(cpu.HL & 0xff)
-            cpu.SetFlagH(^(h & 0b1111))
+
+            carry := uint8(0)
+            if h & 0b1111 == 0 {
+                carry = 1
+            }
+
+            cpu.SetFlagH(carry)
             h -= 1
             cpu.SetFlagN(1)
-            cpu.SetFlagZ(h)
+
+            z := uint8(0)
+            if h == 0 {
+                z = 1
+            }
+
+            cpu.SetFlagZ(z)
             cpu.HL = (uint16(h) << 8) | uint16(l)
             cpu.PC += 1
 
@@ -1514,8 +1532,21 @@ func (cpu *CPU) Execute(instruction Instruction) {
 
             // https://blog.ollien.com/posts/gb-daa/
             // https://ehaskins.com/2018-01-30%20Z80%20DAA/
+
+            var offset uint8 = 0
+
+            if cpu.A & 0xf > 9 || cpu.GetFlagH() == 1 {
+                offset += 6
+            }
+
+            if cpu.A > 0x99 || cpu.GetFlagC() == 1 {
+                offset += 0x60
+            }
+
+            cpu.A += offset
+
             cpu.Cycles += 1
-            log.Printf("DAA not implemented")
+            cpu.PC += 1
 
         case SCF:
             cpu.Cycles += 1
