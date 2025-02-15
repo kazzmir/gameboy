@@ -154,6 +154,12 @@ func doTest(path string) error {
 }
 
 func main(){
+    filter := ""
+
+    if len(os.Args) > 1 {
+        filter = os.Args[1]
+    }
+
     files, err := os.ReadDir("test-files")
     if err != nil {
         log.Printf("Could not read test files: %v", err)
@@ -162,6 +168,10 @@ func main(){
     for _, file := range files {
         name := file.Name()
         if strings.HasSuffix(name, ".json.gz") {
+            if filter != "" && !strings.Contains(name, filter) {
+                continue
+            }
+
             err := doTest(filepath.Join("test-files", file.Name()))
             if err != nil {
                 log.Printf("Error: %v", err)

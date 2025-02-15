@@ -784,11 +784,25 @@ func (cpu *CPU) Execute(instruction Instruction) {
             cpu.Cycles += 1
             h := uint8(cpu.HL >> 8)
             l := uint8(cpu.HL & 0xff)
+
+            carry := uint8(0)
+            if h & 0b1111 == 0b1111 {
+                carry = 1
+            }
+            cpu.SetFlagH(carry)
+
             h += 1
-            cpu.SetFlagH(h & 0b10000)
+
             cpu.SetFlagN(0)
-            cpu.SetFlagZ(h)
+
+            z := uint8(0)
+            if h == 0 {
+                z = 1
+            }
+
+            cpu.SetFlagZ(z)
             cpu.HL = (uint16(h) << 8) | uint16(l)
+            cpu.PC += 1
 
         case Inc8L:
             cpu.Cycles += 1
