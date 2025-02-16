@@ -57,7 +57,7 @@ func runTest(test map[string]interface{}) bool {
     // cpu.PC += 1
 
     // run one instruction
-    instruction, amount := core.DecodeInstruction(cpu.Ram[cpu.PC:])
+    instruction, amount := cpu.DecodeInstruction()
     _ = amount
     // log.Printf("Instruction: %+v amount: %v", instruction, amount)
     cpu.Execute(instruction)

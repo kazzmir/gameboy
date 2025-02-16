@@ -373,6 +373,12 @@ func (cpu *CPU) LoadMemory8(address uint16) uint8 {
     return cpu.Ram[address]
 }
 
+func (cpu *CPU) LoadMemory16(address uint16) uint16 {
+    low := cpu.LoadMemory8(address)
+    high := cpu.LoadMemory8(address+1)
+    return (uint16(high) << 8) | uint16(low)
+}
+
 func (cpu *CPU) AddHL(value uint16) {
     carry := uint32(cpu.HL) + uint32(value) > 0xffff
 
@@ -521,6 +527,7 @@ func (cpu *CPU) Execute(instruction Instruction) {
         case LoadSPImmediate:
             cpu.Cycles += 3
             cpu.SP = instruction.Immediate16
+            cpu.PC += 3
         case StoreBCMemA:
             cpu.Cycles += 2
             cpu.StoreMemory(cpu.BC, cpu.A)
@@ -1577,14 +1584,6 @@ func (cpu *CPU) Execute(instruction Instruction) {
     }
 }
 
-// little-endian 16-bit immediate
-func makeImm16(data []byte) uint16 {
-    if len(data) < 2 {
-        panic("makeImm16: data too short")
-    }
-    return uint16(data[0]) | (uint16(data[1]) << 8)
-}
-
 func makeLoadR16Imm16Instruction(r16 R16, immediate uint16) Instruction {
     switch r16 {
         case R16BC: return Instruction{Opcode: LoadBCImmediate, Immediate16: immediate}
@@ -1682,8 +1681,8 @@ func makeDecR8Instruction(r8 R8) Instruction {
 }
 
 // instructions should be at least 3 bytes long for 'opcode immediate immediate'
-func DecodeInstruction(instructions []byte) (Instruction, uint8) {
-    instruction := instructions[0]
+func (cpu *CPU) DecodeInstruction() (Instruction, uint8) {
+    instruction := cpu.LoadMemory8(cpu.PC)
     block := instruction >> 6
     // check top 2 bits first
     switch block {
@@ -1695,7 +1694,14 @@ func DecodeInstruction(instructions []byte) (Instruction, uint8) {
                     }
                 case 0b0001:
                     r16 := (instruction >> 4) & 0b11
-                    return makeLoadR16Imm16Instruction(R16(r16), makeImm16(instructions[1:])), 3
+
+                    /*
+                    if len(instructions[1:]) < 2 {
+                        return Instruction{Opcode: Unknown}, 1
+                    }
+                    */
+
+                    return makeLoadR16Imm16Instruction(R16(r16), cpu.LoadMemory16(cpu.PC+1)), 3
                 case 0b0010:
                     //return "ld [r16mem], a"
                     r16 := R16((instruction >> 4) & 0b11)
@@ -1708,7 +1714,8 @@ func DecodeInstruction(instructions []byte) (Instruction, uint8) {
                 case 0b1000:
                     // ambiguous with jr n
                     if instruction == 0b00001000 {
-                        immediate := makeImm16(instructions[1:])
+                        // immediate := makeImm16(instructions[1:])
+                        immediate := cpu.LoadMemory16(cpu.PC+1)
                         return Instruction{Opcode: StoreSPMem16, Immediate16: immediate}, 3
                     }
 
@@ -1750,7 +1757,7 @@ func DecodeInstruction(instructions []byte) (Instruction, uint8) {
             switch instruction & 0b111 {
                 case 0b000:
                     if instruction == 0b00011000 {
-                        return Instruction{Opcode: JR, Immediate8: instructions[1]}, 2
+                        return Instruction{Opcode: JR, Immediate8: cpu.LoadMemory8(cpu.PC+1)}, 2
                     }
 
                     if instruction == 0b00010000 {
@@ -1768,7 +1775,7 @@ func DecodeInstruction(instructions []byte) (Instruction, uint8) {
                             case 0b11: opcode = JrC
                         }
 
-                        return Instruction{Opcode: opcode, Immediate8: instructions[1]}, 2
+                        return Instruction{Opcode: opcode, Immediate8: cpu.LoadMemory8(cpu.PC+1)}, 2
                     }
 
                 case 0b100:
@@ -1782,10 +1789,10 @@ func DecodeInstruction(instructions []byte) (Instruction, uint8) {
                 case 0b110:
                     r8 := R8((instruction >> 3) & 0b111)
                     if r8 == R8HL {
-                        return Instruction{Opcode: StoreHLImmediate, Immediate8: instructions[1]}, 2
+                        return Instruction{Opcode: StoreHLImmediate, Immediate8: cpu.LoadMemory8(cpu.PC+1)}, 2
                     }
 
-                    return Instruction{Opcode: Load8Immediate, R8_1: r8, Immediate8: instructions[1]}, 2
+                    return Instruction{Opcode: Load8Immediate, R8_1: r8, Immediate8: cpu.LoadMemory8(cpu.PC+1)}, 2
             }
 
         case 0b01:
@@ -1862,32 +1869,31 @@ func DecodeInstruction(instructions []byte) (Instruction, uint8) {
         case 0b11:
             switch instruction & 0b111111 {
                 case 0b000110:
-                    return Instruction{Opcode: AddAImmediate, Immediate8: instructions[1]}, 2
+                    return Instruction{Opcode: AddAImmediate, Immediate8: cpu.LoadMemory8(cpu.PC+1)}, 2
                 case 0b001110:
-                    return Instruction{Opcode: AdcAImmediate, Immediate8: instructions[1]}, 2
+                    return Instruction{Opcode: AdcAImmediate, Immediate8: cpu.LoadMemory8(cpu.PC+1)}, 2
                 case 0b010110:
-                    return Instruction{Opcode: SubAImmediate, Immediate8: instructions[1]}, 2
+                    return Instruction{Opcode: SubAImmediate, Immediate8: cpu.LoadMemory8(cpu.PC+1)}, 2
                 case 0b011110:
-                    return Instruction{Opcode: SbcAImmediate, Immediate8: instructions[1]}, 2
+                    return Instruction{Opcode: SbcAImmediate, Immediate8: cpu.LoadMemory8(cpu.PC+1)}, 2
                 case 0b100110:
-                    return Instruction{Opcode: AndAImmediate, Immediate8: instructions[1]}, 2
+                    return Instruction{Opcode: AndAImmediate, Immediate8: cpu.LoadMemory8(cpu.PC+1)}, 2
                 case 0b101110:
-                    return Instruction{Opcode: XorAImmediate, Immediate8: instructions[1]}, 2
+                    return Instruction{Opcode: XorAImmediate, Immediate8: cpu.LoadMemory8(cpu.PC+1)}, 2
                 case 0b110110:
-                    return Instruction{Opcode: OrAImmediate, Immediate8: instructions[1]}, 2
+                    return Instruction{Opcode: OrAImmediate, Immediate8: cpu.LoadMemory8(cpu.PC+1)}, 2
                 case 0b111110:
-                    return Instruction{Opcode: CpAImmediate, Immediate8: instructions[1]}, 2
+                    return Instruction{Opcode: CpAImmediate, Immediate8: cpu.LoadMemory8(cpu.PC+1)}, 2
                 case 0b100010:
                     return Instruction{Opcode: LdhCA}, 1
                     // return "ldh [c], a"
 
                 case 0b100000:
-                    return Instruction{Opcode: LdhImmediate8A, Immediate8: instructions[1]}, 2
+                    return Instruction{Opcode: LdhImmediate8A, Immediate8: cpu.LoadMemory8(cpu.PC+1)}, 2
                     // return "ldh [imm8], a"
 
                 case 0b101010:
-                    imm16 := makeImm16(instructions[1:])
-                    return Instruction{Opcode: LdImmediate16A, Immediate16: imm16}, 3
+                    return Instruction{Opcode: LdImmediate16A, Immediate16: cpu.LoadMemory16(cpu.PC+1)}, 3
                     // return "ld [imm16], a"
 
                 case 0b110010:
@@ -1895,20 +1901,19 @@ func DecodeInstruction(instructions []byte) (Instruction, uint8) {
                     // return "ldh a, [c]"
 
                 case 0b110000:
-                    return Instruction{Opcode: LdhAImmediate8, Immediate8: instructions[1]}, 2
+                    return Instruction{Opcode: LdhAImmediate8, Immediate8: cpu.LoadMemory8(cpu.PC+1)}, 2
                     // return "ldh a, [imm8]"
 
                 case 0b111010:
-                    imm16 := makeImm16(instructions[1:])
-                    return Instruction{Opcode: LdAImmediate16, Immediate16: imm16}, 3
+                    return Instruction{Opcode: LdAImmediate16, Immediate16: cpu.LoadMemory16(cpu.PC+1)}, 3
                     // return "ld a, [imm16]"
 
                 case 0b101000:
-                    return Instruction{Opcode: AddSpImmediate8, Immediate8: instructions[1]}, 2
+                    return Instruction{Opcode: AddSpImmediate8, Immediate8: cpu.LoadMemory8(cpu.PC+1)}, 2
                     // return "add sp, imm8"
 
                 case 0b111000:
-                    return Instruction{Opcode: LdHlSpImmediate8, Immediate8: instructions[1]}, 2
+                    return Instruction{Opcode: LdHlSpImmediate8, Immediate8: cpu.LoadMemory8(cpu.PC+1)}, 2
                     // return "ld hl, sp + imm8"
 
                 case 0b111001:
@@ -1962,7 +1967,7 @@ func DecodeInstruction(instructions []byte) (Instruction, uint8) {
 
                     case 0b010:
                         cond := (instruction >> 3) & 0b11
-                        imm16 := makeImm16(instructions[1:])
+                        imm16 := cpu.LoadMemory16(cpu.PC+1)
                         opcode := JpNzImmediate16
 
                         switch cond {
@@ -1976,13 +1981,13 @@ func DecodeInstruction(instructions []byte) (Instruction, uint8) {
                         // return "jp cond, imm16"
 
                     case 0b011:
-                        imm16 := makeImm16(instructions[1:])
+                        imm16 := cpu.LoadMemory16(cpu.PC+1)
                         return Instruction{Opcode: JpImmediate16, Immediate16: imm16}, 3
                         // return "jp imm16"
 
                     case 0b100:
                         cond := (instruction >> 3) & 0b11
-                        imm16 := makeImm16(instructions[1:])
+                        imm16 := cpu.LoadMemory16(cpu.PC+1)
                         opcode := CallNzImmediate16
 
                         switch cond {
@@ -2015,7 +2020,7 @@ func DecodeInstruction(instructions []byte) (Instruction, uint8) {
                         // return "jp hl"
 
                     case 0b11001101:
-                        imm16 := makeImm16(instructions[1:])
+                        imm16 := cpu.LoadMemory16(cpu.PC+1)
                         return Instruction{Opcode: CallImmediate16, Immediate16: imm16}, 3
                         // return "call imm16"
                 }
