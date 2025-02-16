@@ -42,8 +42,8 @@ const (
 
     StoreBCMemA
     StoreDEMemA
-    StoreHLMemA
-    StoreSPMemA
+    StoreHLIncMemA
+    StoreHLDecMemA
 
     DisableInterrupts
     EnableInterrupts
@@ -204,8 +204,8 @@ func (opcode Opcode) String() string {
 
         case StoreBCMemA: return "ld (bc), a"
         case StoreDEMemA: return "ld (de), a"
-        case StoreHLMemA: return "ldi (hl), a"
-        case StoreSPMemA: return "ld (sp), a"
+        case StoreHLIncMemA: return "ld (hli), a"
+        case StoreHLDecMemA: return "ld (hld), a"
 
         case IncBC: return "inc bc"
         case IncDE: return "inc de"
@@ -234,6 +234,9 @@ func (opcode Opcode) String() string {
         case DecDE: return "dec de"
         case DecHL: return "dec hl"
         case DecSP: return "dec sp"
+
+        case CPL: return "cpl"
+        case CCF: return "ccf"
 
         case RLCA: return "rlca"
         case RLA: return "rla"
@@ -536,14 +539,16 @@ func (cpu *CPU) Execute(instruction Instruction) {
             cpu.Cycles += 2
             cpu.StoreMemory(cpu.DE, cpu.A)
             cpu.PC += 1
-        case StoreHLMemA:
+        case StoreHLIncMemA:
             cpu.Cycles += 2
             cpu.StoreMemory(cpu.HL, cpu.A)
             cpu.HL += 1
             cpu.PC += 1
-        case StoreSPMemA:
+        case StoreHLDecMemA:
             cpu.Cycles += 2
-            cpu.StoreMemory(cpu.SP, cpu.A)
+            cpu.StoreMemory(cpu.HL, cpu.A)
+            cpu.HL -= 1
+            cpu.PC += 1
         case LoadAMemBC:
             cpu.Cycles += 2
             cpu.A = cpu.LoadMemory8(cpu.BC)
@@ -982,10 +987,23 @@ func (cpu *CPU) Execute(instruction Instruction) {
             cpu.Cycles += 1
             h := uint8(cpu.HL >> 8)
             l := uint8(cpu.HL & 0xff)
-            cpu.SetFlagH(^(l & 0b1111))
+
+            carry := uint8(0)
+            if l & 0b1111 == 0 {
+                carry = 1
+            }
+
+            cpu.SetFlagH(carry)
+
             l -= 1
             cpu.SetFlagN(1)
-            cpu.SetFlagZ(l)
+
+            z := uint8(0)
+            if l == 0 {
+                z = 1
+            }
+
+            cpu.SetFlagZ(z)
             cpu.HL = (uint16(h) << 8) | uint16(l)
             cpu.PC += 1
 
@@ -1490,6 +1508,9 @@ func (cpu *CPU) Execute(instruction Instruction) {
         case CPL:
             cpu.Cycles += 1
             cpu.A = ^cpu.A
+            cpu.SetFlagN(1)
+            cpu.SetFlagH(1)
+            cpu.PC += 1
 
         case CCF:
             cpu.Cycles += 1
@@ -1614,8 +1635,8 @@ func makeStoreR16MemAInstruction(r16 R16) Instruction {
     switch r16 {
         case R16BC: return Instruction{Opcode: StoreBCMemA}
         case R16DE: return Instruction{Opcode: StoreDEMemA}
-        case R16HL: return Instruction{Opcode: StoreHLMemA}
-        case R16SP: return Instruction{Opcode: StoreSPMemA}
+        case R16HL: return Instruction{Opcode: StoreHLIncMemA}
+        case R16SP: return Instruction{Opcode: StoreHLDecMemA}
     }
 
     return Instruction{Opcode: Unknown}
