@@ -555,6 +555,7 @@ func (cpu *CPU) Execute(instruction Instruction) {
         case LoadAMemHL:
             cpu.Cycles += 2
             cpu.A = cpu.LoadMemory8(cpu.HL)
+            cpu.HL += 1
             cpu.PC += 1
         case LoadAMemSP:
             cpu.Cycles += 2
@@ -825,11 +826,25 @@ func (cpu *CPU) Execute(instruction Instruction) {
             cpu.Cycles += 1
             h := uint8(cpu.HL >> 8)
             l := uint8(cpu.HL & 0xff)
+
+            carry := uint8(0)
+            if l & 0b1111 == 0b1111 {
+                carry = 1
+            }
+            cpu.SetFlagH(carry)
+
             l += 1
-            cpu.SetFlagH(l & 0b10000)
+
             cpu.SetFlagN(0)
-            cpu.SetFlagZ(l)
+
+            z := uint8(0)
+            if l == 0 {
+                z = 1
+            }
+
+            cpu.SetFlagZ(z)
             cpu.HL = (uint16(h) << 8) | uint16(l)
+            cpu.PC += 1
 
         case Inc8HL:
             cpu.Cycles += 3
