@@ -327,6 +327,10 @@ func (cpu *CPU) GetFlagC() uint8 {
     return (cpu.F >> 4) & 0b1
 }
 
+func (cpu *CPU) GetFlagN() uint8 {
+    return (cpu.F >> 6) & 0b1
+}
+
 func (cpu *CPU) GetFlagZ() uint8 {
     return (cpu.F >> 7) & 0b1
 }
@@ -1534,16 +1538,32 @@ func (cpu *CPU) Execute(instruction Instruction) {
             // https://ehaskins.com/2018-01-30%20Z80%20DAA/
 
             var offset uint8 = 0
+            c := uint8(0)
 
-            if cpu.A & 0xf > 9 || cpu.GetFlagH() == 1 {
+            is_subtract := cpu.GetFlagN() == 1
+
+            if (!is_subtract && cpu.A & 0xf > 9) || cpu.GetFlagH() == 1 {
                 offset += 6
             }
 
-            if cpu.A > 0x99 || cpu.GetFlagC() == 1 {
+            if (!is_subtract && cpu.A > 0x99) || cpu.GetFlagC() == 1 {
                 offset += 0x60
+                c = 1
             }
 
-            cpu.A += offset
+            if !is_subtract {
+                cpu.A += offset
+            } else {
+                cpu.A -= offset
+            }
+
+            z := uint8(0)
+            if cpu.A == 0 {
+                z = 1
+            }
+            cpu.SetFlagZ(z)
+            cpu.SetFlagH(0)
+            cpu.SetFlagC(c)
 
             cpu.Cycles += 1
             cpu.PC += 1
