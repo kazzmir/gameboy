@@ -110,26 +110,14 @@ const (
     CpAImmediate
 
     AddAR8
-
     SubAR8
-    SubAHLMem
-
     AdcAR8
-
     AndAR8
-    AndAHLMem
-
     XorAR8
-    XorAHLMem
-
     OrAR8
-    OrAHLMem
-
     SbcAR8
-    SbcAHLMem
 
     CpAR8
-    CpAHLMem
 
     PopAF
     PopR16
@@ -229,7 +217,11 @@ func (opcode Opcode) String() string {
         case Dec8A: return "dec a"
 
         case AddAR8: return "add a, r8"
+        case SubAR8: return "sub a, r8"
         case AdcAR8: return "adc a, r8"
+        case AndAR8: return "and a, r8"
+        case XorAR8: return "xor a, r8"
+        case OrAR8: return "or a, r8"
 
         case DecBC: return "dec bc"
         case DecDE: return "dec de"
@@ -1311,25 +1303,29 @@ func (cpu *CPU) Execute(instruction Instruction) {
 
         case AndAR8:
             cpu.Cycles += 1
-            value := cpu.GetRegister8(instruction.R8_1)
+            var value uint8
+            if instruction.R8_1 == R8HL {
+                value = cpu.LoadMemory8(cpu.HL)
+            } else {
+                value = cpu.GetRegister8(instruction.R8_1)
+            }
             cpu.A &= value
             cpu.SetFlagC(0)
             cpu.SetFlagH(1)
-            cpu.SetFlagZ(cpu.A)
+
+            z := uint8(0)
+            if cpu.A == 0 {
+                z = 1
+            }
+
+            cpu.SetFlagZ(z)
             cpu.SetFlagN(0)
+
+            cpu.PC += 1
 
         case AndAImmediate:
             cpu.Cycles += 2
             value := instruction.Immediate8
-            cpu.A &= value
-            cpu.SetFlagC(0)
-            cpu.SetFlagH(1)
-            cpu.SetFlagZ(cpu.A)
-            cpu.SetFlagN(0)
-
-        case AndAHLMem:
-            cpu.Cycles += 2
-            value := cpu.LoadMemory8(cpu.HL)
             cpu.A &= value
             cpu.SetFlagC(0)
             cpu.SetFlagH(1)
@@ -1354,15 +1350,6 @@ func (cpu *CPU) Execute(instruction Instruction) {
             cpu.SetFlagZ(cpu.A)
             cpu.SetFlagN(0)
 
-        case XorAHLMem:
-            cpu.Cycles += 2
-            value := cpu.LoadMemory8(cpu.HL)
-            cpu.A ^= value
-            cpu.SetFlagC(0)
-            cpu.SetFlagH(0)
-            cpu.SetFlagZ(cpu.A)
-            cpu.SetFlagN(0)
-
         case OrAR8:
             cpu.Cycles += 1
             value := cpu.GetRegister8(instruction.R8_1)
@@ -1381,18 +1368,14 @@ func (cpu *CPU) Execute(instruction Instruction) {
             cpu.SetFlagZ(cpu.A)
             cpu.SetFlagN(0)
 
-        case OrAHLMem:
-            cpu.Cycles += 2
-            value := cpu.LoadMemory8(cpu.HL)
-            cpu.A |= value
-            cpu.SetFlagC(0)
-            cpu.SetFlagH(0)
-            cpu.SetFlagZ(cpu.A)
-            cpu.SetFlagN(0)
-
         case SubAR8:
             cpu.Cycles += 1
-            value := cpu.GetRegister8(instruction.R8_1)
+            var value uint8
+            if instruction.R8_1 == R8HL {
+                value = cpu.LoadMemory8(cpu.HL)
+            } else {
+                value = cpu.GetRegister8(instruction.R8_1)
+            }
             carry := uint8(0)
             if value > cpu.A {
                 carry = 1
@@ -1406,7 +1389,14 @@ func (cpu *CPU) Execute(instruction Instruction) {
             cpu.SetFlagN(1)
             cpu.SetFlagC(carry)
             cpu.SetFlagH(halfCarry)
-            cpu.SetFlagZ(cpu.A)
+
+            z := uint8(0)
+            if cpu.A == 0 {
+                z = 1
+            }
+
+            cpu.SetFlagZ(z)
+            cpu.PC += 1
 
         case SubAImmediate:
             cpu.Cycles += 2
@@ -1420,23 +1410,6 @@ func (cpu *CPU) Execute(instruction Instruction) {
                 halfCarry = 1
             }
 
-            cpu.A -= value
-            cpu.SetFlagN(1)
-            cpu.SetFlagC(carry)
-            cpu.SetFlagH(halfCarry)
-            cpu.SetFlagZ(cpu.A)
-
-        case SubAHLMem:
-            cpu.Cycles += 2
-            value := cpu.LoadMemory8(cpu.HL)
-            carry := uint8(0)
-            if value > cpu.A {
-                carry = 1
-            }
-            halfCarry := uint8(0)
-            if ((cpu.A & 0xf) - (value & 0xf)) & 0x10 == 0x10 {
-                halfCarry = 1
-            }
             cpu.A -= value
             cpu.SetFlagN(1)
             cpu.SetFlagC(carry)
@@ -1483,25 +1456,6 @@ func (cpu *CPU) Execute(instruction Instruction) {
             cpu.SetFlagH(halfCarry)
             cpu.SetFlagZ(cpu.A)
 
-        case SbcAHLMem:
-            cpu.Cycles += 2
-            oldCarry := cpu.GetFlagC()
-            value := cpu.LoadMemory8(cpu.HL)
-            carry := uint8(0)
-            if value + oldCarry > cpu.A {
-                carry = 1
-            }
-            halfCarry := uint8(0)
-            if ((cpu.A & 0xf) - (value & 0xf) - oldCarry) & 0x10 == 0x10 {
-                halfCarry = 1
-            }
-            cpu.A -= value
-            cpu.A -= oldCarry
-            cpu.SetFlagN(1)
-            cpu.SetFlagC(carry)
-            cpu.SetFlagH(halfCarry)
-            cpu.SetFlagZ(cpu.A)
-
         case CpAR8:
             // same as sub, but don't store result
             cpu.Cycles += 1
@@ -1535,22 +1489,6 @@ func (cpu *CPU) Execute(instruction Instruction) {
                 halfCarry = 1
             }
 
-            cpu.SetFlagN(1)
-            cpu.SetFlagC(carry)
-            cpu.SetFlagH(halfCarry)
-            cpu.SetFlagZ(cpu.A)
-
-        case CpAHLMem:
-            cpu.Cycles += 2
-            value := cpu.LoadMemory8(cpu.HL)
-            carry := uint8(0)
-            if value > cpu.A {
-                carry = 1
-            }
-            halfCarry := uint8(0)
-            if ((cpu.A & 0xf) - (value & 0xf)) & 0x10 == 0x10 {
-                halfCarry = 1
-            }
             cpu.SetFlagN(1)
             cpu.SetFlagC(carry)
             cpu.SetFlagH(halfCarry)
@@ -1920,11 +1858,6 @@ func (cpu *CPU) DecodeInstruction() (Instruction, uint8) {
             switch (instruction >> 3) & 0b111 {
                 case 0b000:
                     r8 := R8(instruction & 0b111)
-                    /*
-                    if r8 == R8HL {
-                        return Instruction{Opcode: AddAHLMem}, 1
-                    }
-                    */
                     return Instruction{Opcode: AddAR8, R8_1: r8}, 1
                 case 0b001:
                     r8 := R8(instruction & 0b111)
@@ -1932,48 +1865,26 @@ func (cpu *CPU) DecodeInstruction() (Instruction, uint8) {
 
                 case 0b010:
                     r8 := R8(instruction & 0b111)
-                    if r8 == R8HL {
-                        return Instruction{Opcode: SubAHLMem}, 1
-                    }
                     return Instruction{Opcode: SubAR8, R8_1: r8}, 1
 
                 case 0b011:
                     r8 := R8(instruction & 0b111)
-                    if r8 == R8HL {
-                        return Instruction{Opcode: SbcAHLMem}, 1
-                    }
-
                     return Instruction{Opcode: SbcAR8, R8_1: r8}, 1
 
                 case 0b100:
                     r8 := R8(instruction & 0b111)
-                    if r8 == R8HL {
-                        return Instruction{Opcode: AndAHLMem}, 1
-                    }
-
                     return Instruction{Opcode: AndAR8, R8_1: r8}, 1
 
                 case 0b101:
                     r8 := R8(instruction & 0b111)
-                    if r8 == R8HL {
-                        return Instruction{Opcode: XorAHLMem}, 1
-                    }
-
                     return Instruction{Opcode: XorAR8, R8_1: r8}, 1
 
                 case 0b110:
                     r8 := R8(instruction & 0b111)
-                    if r8 == R8HL {
-                        return Instruction{Opcode: OrAHLMem}, 1
-                    }
-
                     return Instruction{Opcode: OrAR8, R8_1: r8}, 1
 
                 case 0b111:
                     r8 := R8(instruction & 0b111)
-                    if r8 == R8HL {
-                        return Instruction{Opcode: CpAHLMem}, 1
-                    }
                     return Instruction{Opcode: CpAR8, R8_1: r8}, 1
             }
         case 0b11:
