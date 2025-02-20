@@ -1112,7 +1112,15 @@ func (cpu *CPU) Execute(instruction Instruction) {
 
         case LoadR8R8:
             cpu.Cycles += 1
-            value := cpu.GetRegister8(instruction.R8_2)
+
+            var value uint8
+
+            if instruction.R8_2 == R8HL {
+                value = cpu.LoadMemory8(cpu.HL)
+            } else {
+                value = cpu.GetRegister8(instruction.R8_2)
+            }
+
             cpu.SetRegister8(instruction.R8_1, value)
 
             cpu.PC += 1
