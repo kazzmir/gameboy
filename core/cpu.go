@@ -1121,7 +1121,11 @@ func (cpu *CPU) Execute(instruction Instruction) {
                 value = cpu.GetRegister8(instruction.R8_2)
             }
 
-            cpu.SetRegister8(instruction.R8_1, value)
+            if instruction.R8_1 == R8HL {
+                cpu.StoreMemory(cpu.HL, value)
+            } else {
+                cpu.SetRegister8(instruction.R8_1, value)
+            }
 
             cpu.PC += 1
 
