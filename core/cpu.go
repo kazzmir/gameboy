@@ -110,13 +110,11 @@ const (
     CpAImmediate
 
     AddAR8
-    AddAHLMem
 
     SubAR8
     SubAHLMem
 
     AdcAR8
-    AdcAHLMem
 
     AndAR8
     AndAHLMem
@@ -231,6 +229,7 @@ func (opcode Opcode) String() string {
         case Dec8A: return "dec a"
 
         case AddAR8: return "add a, r8"
+        case AdcAR8: return "adc a, r8"
 
         case DecBC: return "dec bc"
         case DecDE: return "dec de"
@@ -1262,7 +1261,13 @@ func (cpu *CPU) Execute(instruction Instruction) {
 
         case AdcAR8:
             cpu.Cycles += 1
-            value := cpu.GetRegister8(instruction.R8_1)
+            var value uint8
+
+            if instruction.R8_1 == R8HL {
+                value = cpu.LoadMemory8(cpu.HL)
+            } else {
+                value = cpu.GetRegister8(instruction.R8_1)
+            }
             oldCarry := cpu.GetFlagC()
             carry := uint8(0)
             if uint32(cpu.A) + uint32(value) + uint32(oldCarry) > 0xff {
@@ -1275,48 +1280,21 @@ func (cpu *CPU) Execute(instruction Instruction) {
             cpu.A += value + oldCarry
             cpu.SetFlagC(carry)
             cpu.SetFlagH(halfCarry)
-            cpu.SetFlagZ(cpu.A)
+
+            z := uint8(0)
+            if cpu.A == 0 {
+                z = 1
+            }
+
+            cpu.SetFlagZ(z)
             cpu.SetFlagN(0)
+
+            cpu.PC += 1
 
         case AdcAImmediate:
             cpu.Cycles += 2
             value := instruction.Immediate8
             oldCarry := cpu.GetFlagC()
-            carry := uint8(0)
-            if uint32(cpu.A) + uint32(value) + uint32(oldCarry) > 0xff {
-                carry = 1
-            }
-            halfCarry := uint8(0)
-            if ((cpu.A & 0xf) + (value & 0xf) + oldCarry) & 0x10 == 0x10 {
-                halfCarry = 1
-            }
-            cpu.A += value + oldCarry
-            cpu.SetFlagC(carry)
-            cpu.SetFlagH(halfCarry)
-            cpu.SetFlagZ(cpu.A)
-            cpu.SetFlagN(0)
-
-        case AddAHLMem:
-            cpu.Cycles += 2
-            value := cpu.LoadMemory8(cpu.HL)
-            carry := uint8(0)
-            if uint32(cpu.A) + uint32(value) > 0xff {
-                carry = 1
-            }
-            halfCarry := uint8(0)
-            if ((cpu.A & 0xf) + (value & 0xf)) & 0x10 == 0x10 {
-                halfCarry = 1
-            }
-            cpu.A += value
-            cpu.SetFlagC(carry)
-            cpu.SetFlagH(halfCarry)
-            cpu.SetFlagZ(cpu.A)
-            cpu.SetFlagN(0)
-
-        case AdcAHLMem:
-            cpu.Cycles += 2
-            oldCarry := cpu.GetFlagC()
-            value := cpu.LoadMemory8(cpu.HL)
             carry := uint8(0)
             if uint32(cpu.A) + uint32(value) + uint32(oldCarry) > 0xff {
                 carry = 1
@@ -1942,15 +1920,14 @@ func (cpu *CPU) DecodeInstruction() (Instruction, uint8) {
             switch (instruction >> 3) & 0b111 {
                 case 0b000:
                     r8 := R8(instruction & 0b111)
+                    /*
                     if r8 == R8HL {
                         return Instruction{Opcode: AddAHLMem}, 1
                     }
+                    */
                     return Instruction{Opcode: AddAR8, R8_1: r8}, 1
                 case 0b001:
                     r8 := R8(instruction & 0b111)
-                    if r8 == R8HL {
-                        return Instruction{Opcode: AdcAHLMem}, 1
-                    }
                     return Instruction{Opcode: AdcAR8, R8_1: r8}, 1
 
                 case 0b010:
