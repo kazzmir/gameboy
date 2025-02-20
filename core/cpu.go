@@ -880,11 +880,24 @@ func (cpu *CPU) Execute(instruction Instruction) {
         case Inc8A:
             cpu.Cycles += 1
             a := cpu.A
+
+            carry := uint8(0)
+            if a & 0b1111 == 0b1111 {
+                carry = 1
+            }
+            cpu.SetFlagH(carry)
+
             a += 1
-            cpu.SetFlagH(a & 0b10000)
             cpu.SetFlagN(0)
-            cpu.SetFlagZ(a)
             cpu.A = a
+
+            z := uint8(0)
+            if a == 0 {
+                z = 1
+            }
+            cpu.SetFlagZ(z)
+
+            cpu.PC += 1
 
         case Dec8B:
             cpu.Cycles += 1
@@ -1050,11 +1063,25 @@ func (cpu *CPU) Execute(instruction Instruction) {
         case Dec8A:
             cpu.Cycles += 1
             a := cpu.A
-            cpu.SetFlagH(^(a & 0b1111))
+
+            carry := uint8(0)
+            if a & 0b1111 == 0 {
+                carry = 1
+            }
+            cpu.SetFlagH(carry)
+
             a -= 1
             cpu.SetFlagN(1)
-            cpu.SetFlagZ(a)
+
+            z := uint8(0)
+            if a == 0 {
+                z = 1
+            }
+
+            cpu.SetFlagZ(z)
             cpu.A = a
+
+            cpu.PC += 1
 
         case DecBC:
             cpu.Cycles += 2
@@ -1087,6 +1114,8 @@ func (cpu *CPU) Execute(instruction Instruction) {
             cpu.Cycles += 1
             value := cpu.GetRegister8(instruction.R8_2)
             cpu.SetRegister8(instruction.R8_1, value)
+
+            cpu.PC += 1
 
         case PopAF:
             cpu.Cycles += 3
@@ -1548,6 +1577,10 @@ func (cpu *CPU) Execute(instruction Instruction) {
             cpu.Cycles += 1
             carry := cpu.GetFlagC()
             cpu.SetFlagC(1 - carry)
+            cpu.SetFlagH(0)
+            cpu.SetFlagN(0)
+
+            cpu.PC += 1
 
         case RLCA:
             cpu.Cycles += 1
