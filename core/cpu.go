@@ -854,11 +854,25 @@ func (cpu *CPU) Execute(instruction Instruction) {
         case Inc8HL:
             cpu.Cycles += 3
             value := cpu.LoadMemory8(cpu.HL)
-            value += 1
-            cpu.SetFlagH(value & 0b10000)
             cpu.SetFlagN(0)
-            cpu.SetFlagZ(value)
+
+            carry := uint8(0)
+            if value & 0b1111 == 0b1111 {
+                carry = 1
+            }
+            cpu.SetFlagH(carry)
+
+            value += 1
+
+            z := uint8(0)
+            if value == 0 {
+                z = 1
+            }
+
+            cpu.SetFlagZ(z)
+
             cpu.StoreMemory(cpu.HL, value)
+            cpu.PC += 1
 
         case Inc8A:
             cpu.Cycles += 1
