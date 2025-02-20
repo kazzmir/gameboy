@@ -230,6 +230,8 @@ func (opcode Opcode) String() string {
         case Dec8HL: return "dec (hl)"
         case Dec8A: return "dec a"
 
+        case AddAR8: return "add a, r8"
+
         case DecBC: return "dec bc"
         case DecDE: return "dec de"
         case DecHL: return "dec hl"
@@ -1175,7 +1177,14 @@ func (cpu *CPU) Execute(instruction Instruction) {
 
         case AddAR8:
             cpu.Cycles += 1
-            value := cpu.GetRegister8(instruction.R8_1)
+            var value uint8
+
+            if instruction.R8_1 == R8HL {
+                value = cpu.LoadMemory8(cpu.HL)
+            } else {
+                value = cpu.GetRegister8(instruction.R8_1)
+            }
+
             carry := uint8(0)
             if uint32(cpu.A) + uint32(value) > 0xff {
                 carry = 1
@@ -1187,8 +1196,16 @@ func (cpu *CPU) Execute(instruction Instruction) {
             cpu.A += value
             cpu.SetFlagC(carry)
             cpu.SetFlagH(halfCarry)
-            cpu.SetFlagZ(cpu.A)
+
+            z := uint8(0)
+            if cpu.A == 0 {
+                z = 1
+            }
+
+            cpu.SetFlagZ(z)
             cpu.SetFlagN(0)
+
+            cpu.PC += 1
 
         case AddAImmediate:
             cpu.Cycles += 2
