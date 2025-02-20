@@ -50,8 +50,8 @@ const (
 
     LoadAMemBC
     LoadAMemDE
-    LoadAMemHL
-    LoadAMemSP
+    LoadAMemHLI
+    LoadAMemHLD
 
     LdSpHl
 
@@ -243,6 +243,8 @@ func (opcode Opcode) String() string {
         case RRCA: return "rrca"
         case RRA: return "rra"
 
+        case SCF: return "scf"
+
         case Stop: return "stop"
         case Halt: return "halt"
 
@@ -273,8 +275,8 @@ func (opcode Opcode) String() string {
 
         case LoadAMemBC: return "ld a, (bc)"
         case LoadAMemDE: return "ld a, (de)"
-        case LoadAMemHL: return "ld a, (hl)"
-        case LoadAMemSP: return "ld a, (sp)"
+        case LoadAMemHLI: return "ld a, (hl+)"
+        case LoadAMemHLD: return "ld a, (hl-)"
 
         // todo rest
     }
@@ -557,14 +559,15 @@ func (cpu *CPU) Execute(instruction Instruction) {
             cpu.Cycles += 2
             cpu.A = cpu.LoadMemory8(cpu.DE)
             cpu.PC += 1
-        case LoadAMemHL:
+        case LoadAMemHLI:
             cpu.Cycles += 2
             cpu.A = cpu.LoadMemory8(cpu.HL)
             cpu.HL += 1
             cpu.PC += 1
-        case LoadAMemSP:
+        case LoadAMemHLD:
             cpu.Cycles += 2
-            cpu.A = cpu.LoadMemory8(cpu.SP)
+            cpu.A = cpu.LoadMemory8(cpu.HL)
+            cpu.HL -= 1
             cpu.PC += 1
         case StoreSPMem16:
             cpu.Cycles += 5
@@ -1024,11 +1027,25 @@ func (cpu *CPU) Execute(instruction Instruction) {
         case Dec8HL:
             cpu.Cycles += 3
             value := cpu.LoadMemory8(cpu.HL)
-            cpu.SetFlagH(^(value & 0b1111))
+
+            carry := uint8(0)
+            if value & 0b1111 == 0 {
+                carry = 1
+            }
+            cpu.SetFlagH(carry)
+
             value -= 1
             cpu.SetFlagN(1)
-            cpu.SetFlagZ(value)
+
+            z := uint8(0)
+            if value == 0 {
+                z = 1
+            }
+
+            cpu.SetFlagZ(z)
             cpu.StoreMemory(cpu.HL, value)
+
+            cpu.PC += 1
 
         case Dec8A:
             cpu.Cycles += 1
@@ -1064,6 +1081,7 @@ func (cpu *CPU) Execute(instruction Instruction) {
         case StoreHLImmediate:
             cpu.Cycles += 3
             cpu.StoreMemory(cpu.HL, instruction.Immediate8)
+            cpu.PC += 2
 
         case LoadR8R8:
             cpu.Cycles += 1
@@ -1627,7 +1645,10 @@ func (cpu *CPU) Execute(instruction Instruction) {
 
         case SCF:
             cpu.Cycles += 1
+            cpu.SetFlagN(0)
+            cpu.SetFlagH(0)
             cpu.SetFlagC(1)
+            cpu.PC += 1
 
         default:
             log.Printf("Execute error: unknown opcode %v", instruction.Opcode)
@@ -1660,8 +1681,8 @@ func makeLoadAFromR16MemInstruction(r16 R16) Instruction {
     switch r16 {
         case R16BC: return Instruction{Opcode: LoadAMemBC}
         case R16DE: return Instruction{Opcode: LoadAMemDE}
-        case R16HL: return Instruction{Opcode: LoadAMemHL}
-        case R16SP: return Instruction{Opcode: LoadAMemSP}
+        case R16HL: return Instruction{Opcode: LoadAMemHLI}
+        case R16SP: return Instruction{Opcode: LoadAMemHLD}
     }
 
     return Instruction{Opcode: Unknown}
