@@ -218,6 +218,7 @@ func (opcode Opcode) String() string {
 
         case AddAR8: return "add a, r8"
         case SubAR8: return "sub a, r8"
+        case SbcAR8: return "sbc a, r8"
         case AdcAR8: return "adc a, r8"
         case AndAR8: return "and a, r8"
         case XorAR8: return "xor a, r8"
@@ -1418,12 +1419,21 @@ func (cpu *CPU) Execute(instruction Instruction) {
 
         case SbcAR8:
             cpu.Cycles += 1
+
+            var value uint8
+            if instruction.R8_1 == R8HL {
+                value = cpu.LoadMemory8(cpu.HL)
+            } else {
+                value = cpu.GetRegister8(instruction.R8_1)
+            }
+
             oldCarry := cpu.GetFlagC()
-            value := cpu.GetRegister8(instruction.R8_1)
+
             carry := uint8(0)
-            if value + oldCarry > cpu.A {
+            if uint16(value) + uint16(oldCarry) > uint16(cpu.A) {
                 carry = 1
             }
+
             halfCarry := uint8(0)
             if ((cpu.A & 0xf) - (value & 0xf) - oldCarry) & 0x10 == 0x10 {
                 halfCarry = 1
@@ -1434,7 +1444,15 @@ func (cpu *CPU) Execute(instruction Instruction) {
             cpu.SetFlagN(1)
             cpu.SetFlagC(carry)
             cpu.SetFlagH(halfCarry)
-            cpu.SetFlagZ(cpu.A)
+
+            z := uint8(0)
+            if cpu.A == 0 {
+                z = 1
+            }
+
+            cpu.SetFlagZ(z)
+
+            cpu.PC += 1
 
         case SbcAImmediate:
             cpu.Cycles += 2
