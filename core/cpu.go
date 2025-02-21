@@ -225,6 +225,11 @@ func (opcode Opcode) String() string {
         case OrAR8: return "or a, r8"
         case CpAR8: return "cp a, r8"
 
+        case PopAF: return "pop af"
+        case PopR16: return "pop r16"
+        case PushR16: return "push r16"
+        case PushAF: return "push af"
+
         case DecBC: return "dec bc"
         case DecDE: return "dec de"
         case DecHL: return "dec hl"
@@ -247,6 +252,14 @@ func (opcode Opcode) String() string {
         case RetZ: return "ret z"
         case RetNc: return "ret nc"
         case RetC: return "ret c"
+
+        case JpImmediate16: return "jp nn"
+        case JpHL: return "jp hl"
+
+        case JpNzImmediate16: return "jp nz, nn"
+        case JpZImmediate16: return "jp z, nn"
+        case JpNcImmediate16: return "jp nc, nn"
+        case JpCImmediate16: return "jp c, nn"
 
         case JR: return "jr n"
         case JrNz: return "jr nz, n"
@@ -470,6 +483,7 @@ func (cpu *CPU) doRetCond(cond bool) {
         cpu.PC = cpu.Pop16()
     } else {
         cpu.Cycles += 2
+        cpu.PC += 1
     }
 }
 
@@ -484,6 +498,7 @@ func (cpu *CPU) doCallCond(address uint16, cond bool) {
 
     } else {
         cpu.Cycles += 3
+        cpu.PC += 3
     }
 }
 
@@ -503,6 +518,7 @@ func (cpu *CPU) doJpCond(address uint16, cond bool) {
         cpu.PC = address
     } else {
         cpu.Cycles += 3
+        cpu.PC += 3
     }
 }
 
@@ -1147,6 +1163,8 @@ func (cpu *CPU) Execute(instruction Instruction) {
                 case 1: cpu.DE = full
                 case 2: cpu.HL = full
             }
+
+            cpu.PC += 1
 
         case PushR16:
             cpu.Cycles += 4
