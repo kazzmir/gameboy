@@ -133,6 +133,11 @@ const (
     RRA
     RR
 
+    SLA
+    SRA
+    SRL
+    SWAP
+
     DAA
 
     SCF
@@ -250,6 +255,11 @@ func (opcode Opcode) String() string {
         case RRC: return "rrc"
         case RRA: return "rra"
         case RR: return "rr"
+
+        case SLA: return "sla"
+        case SRA: return "sra"
+        case SRL: return "srl"
+        case SWAP: return "swap"
 
         case SCF: return "scf"
 
@@ -1781,6 +1791,60 @@ func (cpu *CPU) Execute(instruction Instruction) {
             cpu.SetFlagN(0)
             cpu.SetFlagC(newCarry)
 
+        case SLA:
+            cpu.Cycles += 2
+            cpu.PC += 2
+
+            var value uint8
+            if instruction.R8_1 == R8HL {
+                value = cpu.LoadMemory8(cpu.HL)
+            } else {
+                value = cpu.GetRegister8(instruction.R8_1)
+            }
+
+            carry := value >> 7
+            newValue := value << 1
+            if instruction.R8_1 == R8HL {
+                cpu.StoreMemory(cpu.HL, newValue)
+            } else {
+                cpu.SetRegister8(instruction.R8_1, newValue)
+            }
+            if newValue == 0 {
+                cpu.SetFlagZ(1)
+            } else {
+                cpu.SetFlagZ(0)
+            }
+            cpu.SetFlagH(0)
+            cpu.SetFlagN(0)
+            cpu.SetFlagC(carry)
+
+        case SRA:
+            cpu.Cycles += 2
+            cpu.PC += 2
+
+            var value uint8
+            if instruction.R8_1 == R8HL {
+                value = cpu.LoadMemory8(cpu.HL)
+            } else {
+                value = cpu.GetRegister8(instruction.R8_1)
+            }
+
+            carry := value & 0b1
+            newValue := (value >> 1) | (value & 0x80)
+            if instruction.R8_1 == R8HL {
+                cpu.StoreMemory(cpu.HL, newValue)
+            } else {
+                cpu.SetRegister8(instruction.R8_1, newValue)
+            }
+            if newValue == 0 {
+                cpu.SetFlagZ(1)
+            } else {
+                cpu.SetFlagZ(0)
+            }
+            cpu.SetFlagH(0)
+            cpu.SetFlagN(0)
+            cpu.SetFlagC(carry)
+
         case Stop:
             cpu.Stopped = true
             cpu.PC += 1
@@ -1956,13 +2020,13 @@ func (cpu *CPU) DecodeInstruction() (Instruction, uint8) {
                     // rr
                     case 0b00011: return Instruction{Opcode: RR, R8_1: r8}, 2
                     // sla
-                    case 0b00100:
+                    case 0b00100: return Instruction{Opcode: SLA, R8_1: r8}, 2
                     // sra
-                    case 0b00101:
+                    case 0b00101: return Instruction{Opcode: SRA, R8_1: r8}, 2
                     // swap
-                    case 0b00110:
+                    case 0b00110: return Instruction{Opcode: SWAP, R8_1: r8}, 2
                     // srl
-                    case 0b00111:
+                    case 0b00111: return Instruction{Opcode: SRL, R8_1: r8}, 2
                 }
 
             case 0b01:
