@@ -125,6 +125,7 @@ const (
     PushAF
 
     RLCA
+    RLC
     RLA
     RRCA
     RRA
@@ -239,6 +240,7 @@ func (opcode Opcode) String() string {
         case CCF: return "ccf"
 
         case RLCA: return "rlca"
+        case RLC: return "rlc"
         case RLA: return "rla"
         case RRCA: return "rrca"
         case RRA: return "rra"
@@ -1625,6 +1627,32 @@ func (cpu *CPU) Execute(instruction Instruction) {
 
             cpu.PC += 1
 
+        case RLC:
+            cpu.Cycles += 2
+            cpu.PC += 2
+
+            var value uint8
+            if instruction.R8_1 == R8HL {
+                value = cpu.LoadMemory8(cpu.HL)
+            } else {
+                value = cpu.GetRegister8(instruction.R8_1)
+            }
+
+            newValue, carry := RotateLeft(value)
+            if instruction.R8_1 == R8HL {
+                cpu.StoreMemory(cpu.HL, newValue)
+            } else {
+                cpu.SetRegister8(instruction.R8_1, newValue)
+            }
+            if newValue == 0 {
+                cpu.SetFlagZ(1)
+            } else {
+                cpu.SetFlagZ(0)
+            }
+            cpu.SetFlagH(0)
+            cpu.SetFlagN(0)
+            cpu.SetFlagC(carry)
+
         case RRCA:
             cpu.Cycles += 1
 
@@ -1818,6 +1846,46 @@ func makeDecR8Instruction(r8 R8) Instruction {
 // instructions should be at least 3 bytes long for 'opcode immediate immediate'
 func (cpu *CPU) DecodeInstruction() (Instruction, uint8) {
     instruction := cpu.LoadMemory8(cpu.PC)
+
+    // special case for CB prefix
+    if instruction == 0xcb {
+        instruction = cpu.LoadMemory8(cpu.PC + 1)
+
+        switch instruction >> 6 {
+            case 0b00:
+
+                r8 := R8(instruction & 0b111)
+
+                switch instruction >> 3 {
+                    // rlc
+                    case 0b00000: return Instruction{Opcode: RLC, R8_1: r8}, 2
+                    // rrc
+                    case 0b00001:
+                    // rl
+                    case 0b00010:
+                    // rr
+                    case 0b00011:
+                    // sla
+                    case 0b00100:
+                    // sra
+                    case 0b00101:
+                    // swap
+                    case 0b00110:
+                    // srl
+                    case 0b00111:
+                }
+
+            case 0b01:
+                // bit
+            case 0b10:
+                // res
+            case 0b11:
+                // set
+        }
+
+        return Instruction{Opcode: Unknown}, 2
+    }
+
     block := instruction >> 6
     // check top 2 bits first
     switch block {
