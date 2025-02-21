@@ -143,7 +143,7 @@ func doTest(path string) error {
         } else {
             if !runTest(testData) {
                 log.Printf("Test data: %+v", testData)
-                break
+                return fmt.Errorf("Test failed: %v", path)
             }
         }
 
@@ -172,9 +172,11 @@ func main(){
                 continue
             }
 
+            log.Printf("Running test: %v", file.Name())
             err := doTest(filepath.Join("test-files", file.Name()))
             if err != nil {
                 log.Printf("Error: %v", err)
+                break
             }
         }
     }
