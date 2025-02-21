@@ -138,6 +138,10 @@ const (
     SRL
     SWAP
 
+    Bit
+    Res
+    Set
+
     DAA
 
     SCF
@@ -260,6 +264,10 @@ func (opcode Opcode) String() string {
         case SRA: return "sra"
         case SRL: return "srl"
         case SWAP: return "swap"
+
+        case Bit: return "bit"
+        case Res: return "res"
+        case Set: return "set"
 
         case SCF: return "scf"
 
@@ -1904,6 +1912,64 @@ func (cpu *CPU) Execute(instruction Instruction) {
                 cpu.SetFlagZ(0)
             }
 
+        case Bit:
+            cpu.Cycles += 2
+            cpu.PC += 2
+
+            var value uint8
+            if instruction.R8_1 == R8HL {
+                value = cpu.LoadMemory8(cpu.HL)
+            } else {
+                value = cpu.GetRegister8(instruction.R8_1)
+            }
+
+            if value & (1 << instruction.Immediate8) == 0 {
+                cpu.SetFlagZ(1)
+            } else {
+                cpu.SetFlagZ(0)
+            }
+
+            cpu.SetFlagN(0)
+            cpu.SetFlagH(1)
+
+        case Res:
+            cpu.Cycles += 2
+            cpu.PC += 2
+
+            var value uint8
+            if instruction.R8_1 == R8HL {
+                value = cpu.LoadMemory8(cpu.HL)
+            } else {
+                value = cpu.GetRegister8(instruction.R8_1)
+            }
+
+            newValue := value & ^(1 << instruction.Immediate8)
+
+            if instruction.R8_1 == R8HL {
+                cpu.StoreMemory(cpu.HL, newValue)
+            } else {
+                cpu.SetRegister8(instruction.R8_1, newValue)
+            }
+
+        case Set:
+            cpu.Cycles += 2
+            cpu.PC += 2
+
+            var value uint8
+            if instruction.R8_1 == R8HL {
+                value = cpu.LoadMemory8(cpu.HL)
+            } else {
+                value = cpu.GetRegister8(instruction.R8_1)
+            }
+
+            newValue := value | (1 << instruction.Immediate8)
+
+            if instruction.R8_1 == R8HL {
+                cpu.StoreMemory(cpu.HL, newValue)
+            } else {
+                cpu.SetRegister8(instruction.R8_1, newValue)
+            }
+
         case Stop:
             cpu.Stopped = true
             cpu.PC += 1
@@ -2090,10 +2156,19 @@ func (cpu *CPU) DecodeInstruction() (Instruction, uint8) {
 
             case 0b01:
                 // bit
+                r8 := R8(instruction & 0b111)
+                bit := (instruction >> 3) & 0b111
+                return Instruction{Opcode: Bit, R8_1: r8, Immediate8: bit}, 2
             case 0b10:
                 // res
+                r8 := R8(instruction & 0b111)
+                bit := (instruction >> 3) & 0b111
+                return Instruction{Opcode: Res, R8_1: r8, Immediate8: bit}, 2
             case 0b11:
                 // set
+                r8 := R8(instruction & 0b111)
+                bit := (instruction >> 3) & 0b111
+                return Instruction{Opcode: Set, R8_1: r8, Immediate8: bit}, 2
         }
 
         return Instruction{Opcode: Unknown}, 2
