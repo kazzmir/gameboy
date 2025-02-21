@@ -223,6 +223,7 @@ func (opcode Opcode) String() string {
         case AndAR8: return "and a, r8"
         case XorAR8: return "xor a, r8"
         case OrAR8: return "or a, r8"
+        case CpAR8: return "cp a, r8"
 
         case DecBC: return "dec bc"
         case DecDE: return "dec de"
@@ -1335,12 +1336,25 @@ func (cpu *CPU) Execute(instruction Instruction) {
 
         case XorAR8:
             cpu.Cycles += 1
-            value := cpu.GetRegister8(instruction.R8_1)
+            var value uint8
+            if instruction.R8_1 == R8HL {
+                value = cpu.LoadMemory8(cpu.HL)
+            } else {
+                value = cpu.GetRegister8(instruction.R8_1)
+            }
             cpu.A ^= value
             cpu.SetFlagC(0)
             cpu.SetFlagH(0)
-            cpu.SetFlagZ(cpu.A)
+
+            z := uint8(0)
+            if cpu.A == 0 {
+                z = 1
+            }
+
+            cpu.SetFlagZ(z)
             cpu.SetFlagN(0)
+
+            cpu.PC += 1
 
         case XorAImmediate:
             cpu.Cycles += 2
@@ -1353,12 +1367,23 @@ func (cpu *CPU) Execute(instruction Instruction) {
 
         case OrAR8:
             cpu.Cycles += 1
-            value := cpu.GetRegister8(instruction.R8_1)
+            var value uint8
+            if instruction.R8_1 == R8HL {
+                value = cpu.LoadMemory8(cpu.HL)
+            } else {
+                value = cpu.GetRegister8(instruction.R8_1)
+            }
             cpu.A |= value
             cpu.SetFlagC(0)
             cpu.SetFlagH(0)
-            cpu.SetFlagZ(cpu.A)
+            if cpu.A == 0 {
+                cpu.SetFlagZ(1)
+            } else {
+                cpu.SetFlagZ(0)
+            }
             cpu.SetFlagN(0)
+
+            cpu.PC += 1
 
         case OrAImmediate:
             cpu.Cycles += 2
@@ -1477,7 +1502,12 @@ func (cpu *CPU) Execute(instruction Instruction) {
         case CpAR8:
             // same as sub, but don't store result
             cpu.Cycles += 1
-            value := cpu.GetRegister8(instruction.R8_1)
+            var value uint8
+            if instruction.R8_1 == R8HL {
+                value = cpu.LoadMemory8(cpu.HL)
+            } else {
+                value = cpu.GetRegister8(instruction.R8_1)
+            }
 
             carry := uint8(0)
             if value > cpu.A {
@@ -1491,7 +1521,13 @@ func (cpu *CPU) Execute(instruction Instruction) {
             cpu.SetFlagN(1)
             cpu.SetFlagC(carry)
             cpu.SetFlagH(halfCarry)
-            cpu.SetFlagZ(cpu.A)
+            if cpu.A - value == 0 {
+                cpu.SetFlagZ(1)
+            } else {
+                cpu.SetFlagZ(0)
+            }
+
+            cpu.PC += 1
 
         case CpAImmediate:
             // same as sub, but don't store result
