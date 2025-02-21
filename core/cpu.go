@@ -267,6 +267,14 @@ func (opcode Opcode) String() string {
         case JrNc: return "jr nc, n"
         case JrC: return "jr c, n"
 
+        case CallNzImmediate16: return "call nz, nn"
+        case CallZImmediate16: return "call z, nn"
+        case CallNcImmediate16: return "call nc, nn"
+        case CallCImmediate16: return "call c, nn"
+
+        case CallImmediate16: return "call nn"
+        case CallResetVector: return "call n"
+
         case DAA: return "daa"
 
         case StoreSPMem16: return "ld (nn), sp"
@@ -631,13 +639,13 @@ func (cpu *CPU) Execute(instruction Instruction) {
             cpu.PC = uint16(int32(cpu.PC) + int32(offset) + 2)
 
         case CallNzImmediate16:
-            cpu.doCallCond(instruction.Immediate16, cpu.GetFlagZ() != 0)
-        case CallZImmediate16:
             cpu.doCallCond(instruction.Immediate16, cpu.GetFlagZ() == 0)
+        case CallZImmediate16:
+            cpu.doCallCond(instruction.Immediate16, cpu.GetFlagZ() != 0)
         case CallNcImmediate16:
-            cpu.doCallCond(instruction.Immediate16, cpu.GetFlagC() != 0)
-        case CallCImmediate16:
             cpu.doCallCond(instruction.Immediate16, cpu.GetFlagC() == 0)
+        case CallCImmediate16:
+            cpu.doCallCond(instruction.Immediate16, cpu.GetFlagC() != 0)
 
         case CallImmediate16:
             cpu.Cycles += 6
@@ -1178,6 +1186,7 @@ func (cpu *CPU) Execute(instruction Instruction) {
             }
 
             cpu.Push16(value)
+            cpu.PC += 1
 
         case PushAF:
             cpu.Cycles += 4
@@ -1232,8 +1241,13 @@ func (cpu *CPU) Execute(instruction Instruction) {
             cpu.A += value
             cpu.SetFlagC(carry)
             cpu.SetFlagH(halfCarry)
-            cpu.SetFlagZ(cpu.A)
+            if cpu.A == 0 {
+                cpu.SetFlagZ(1)
+            } else {
+                cpu.SetFlagZ(0)
+            }
             cpu.SetFlagN(0)
+            cpu.PC += 2
 
         case LdHlSpImmediate8:
             cpu.Cycles += 3
