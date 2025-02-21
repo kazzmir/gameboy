@@ -127,6 +127,7 @@ const (
     RLCA
     RLC
     RLA
+    RL
     RRCA
     RRC
     RRA
@@ -243,6 +244,7 @@ func (opcode Opcode) String() string {
         case RLCA: return "rlca"
         case RLC: return "rlc"
         case RLA: return "rla"
+        case RL: return "rl"
         case RRCA: return "rrca"
         case RRC: return "rrc"
         case RRA: return "rra"
@@ -1706,6 +1708,35 @@ func (cpu *CPU) Execute(instruction Instruction) {
 
             cpu.PC += 1
 
+        case RL:
+            cpu.Cycles += 2
+            cpu.PC += 2
+
+            var value uint8
+            if instruction.R8_1 == R8HL {
+                value = cpu.LoadMemory8(cpu.HL)
+            } else {
+                value = cpu.GetRegister8(instruction.R8_1)
+            }
+
+            oldCarry := cpu.GetFlagC()
+            newCarry := (value >> 7) & 0b1
+            newValue := (value << 1) | oldCarry
+
+            if instruction.R8_1 == R8HL {
+                cpu.StoreMemory(cpu.HL, newValue)
+            } else {
+                cpu.SetRegister8(instruction.R8_1, newValue)
+            }
+            if newValue == 0 {
+                cpu.SetFlagZ(1)
+            } else {
+                cpu.SetFlagZ(0)
+            }
+            cpu.SetFlagH(0)
+            cpu.SetFlagN(0)
+            cpu.SetFlagC(newCarry)
+
         case RRA:
             cpu.Cycles += 1
 
@@ -1890,7 +1921,7 @@ func (cpu *CPU) DecodeInstruction() (Instruction, uint8) {
                     // rrc
                     case 0b00001: return Instruction{Opcode: RRC, R8_1: r8}, 2
                     // rl
-                    case 0b00010:
+                    case 0b00010: return Instruction{Opcode: RL, R8_1: r8}, 2
                     // rr
                     case 0b00011:
                     // sla
