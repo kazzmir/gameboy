@@ -310,6 +310,9 @@ func (opcode Opcode) String() string {
         case CallImmediate16: return "call nn"
         case CallResetVector: return "rst n"
 
+        case Return: return "ret"
+        case ReturnFromInterrupt: return "reti"
+
         case DAA: return "daa"
 
         case StoreSPMem16: return "ld (nn), sp"
@@ -329,7 +332,15 @@ func (opcode Opcode) String() string {
         case LoadAMemHLI: return "ld a, (hl+)"
         case LoadAMemHLD: return "ld a, (hl-)"
 
+        case LdSpHl: return "ld sp, hl"
+        case LdhCA: return "ldh (c), a"
+        case LdhAC: return "ldh a, (c)"
+        case LdhImmediate8A: return "ldh (n), a"
+        case LdhAImmediate8: return "ldh a, (n)"
+
         // todo rest
+
+        case Unknown: return "unknown"
     }
 
     return fmt.Sprintf("? %v", int(opcode))
@@ -795,6 +806,7 @@ func (cpu *CPU) Execute(instruction Instruction) {
 
         case LdhCA:
             cpu.Cycles += 2
+            cpu.PC += 1
             address := 0xff00 + uint16(cpu.GetRegister8(R8C))
             cpu.StoreMemory(address, cpu.A)
 
@@ -805,6 +817,7 @@ func (cpu *CPU) Execute(instruction Instruction) {
 
         case LdhImmediate8A:
             cpu.Cycles += 2
+            cpu.PC += 2
             address := 0xff00 + uint16(instruction.Immediate8)
             cpu.StoreMemory(address, cpu.A)
 
@@ -2374,6 +2387,12 @@ func (cpu *CPU) DecodeInstruction() (Instruction, uint8) {
                     // return "push r16stk"
             }
 
+            if instruction & 0b111 == 0b111 {
+                // return "rst tgt3"
+                address := uint8((instruction >> 3) & 0b111)
+                return Instruction{Opcode: CallResetVector, Immediate8: address*8}, 1
+            }
+
             if instruction >> 5 == 0b110 {
                 switch instruction & 0b111 {
                     case 0b000:
@@ -2426,10 +2445,6 @@ func (cpu *CPU) DecodeInstruction() (Instruction, uint8) {
 
                         // return "call cond, imm16"
 
-                    case 0b111:
-                        address := uint8((instruction >> 3) & 0b111)
-                        return Instruction{Opcode: CallResetVector, Immediate8: address*8}, 1
-                        // return "rst tgt3"
                 }
 
                 switch instruction {
@@ -2441,7 +2456,6 @@ func (cpu *CPU) DecodeInstruction() (Instruction, uint8) {
                         // return "reti"
                     case 0b11101001:
                         return Instruction{Opcode: JpHL}, 1
-
                         // return "jp hl"
 
                     case 0b11001101:
@@ -2450,12 +2464,6 @@ func (cpu *CPU) DecodeInstruction() (Instruction, uint8) {
                         // return "call imm16"
                 }
             }
-
-            /*
-            if instruction == 0xcb {
-                // special prefix instruction
-            }
-            */
     }
 
     return Instruction{Opcode: Unknown}, 1
