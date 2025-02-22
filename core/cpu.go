@@ -238,6 +238,15 @@ func (opcode Opcode) String() string {
         case OrAR8: return "or a, r8"
         case CpAR8: return "cp a, r8"
 
+        case AddAImmediate: return "add a, n"
+        case AdcAImmediate: return "adc a, n"
+        case SubAImmediate: return "sub a, n"
+        case SbcAImmediate: return "sbc a, n"
+        case AndAImmediate: return "and a, n"
+        case XorAImmediate: return "xor a, n"
+        case OrAImmediate: return "or a, n"
+        case CpAImmediate: return "cp a, n"
+
         case PopAF: return "pop af"
         case PopR16: return "pop r16"
         case PushR16: return "push r16"
@@ -554,6 +563,161 @@ func (cpu *CPU) doJpCond(address uint16, cond bool) {
         cpu.Cycles += 3
         cpu.PC += 3
     }
+}
+
+func (cpu *CPU) doAddA(value uint8) {
+    carry := uint8(0)
+    if uint32(cpu.A) + uint32(value) > 0xff {
+        carry = 1
+    }
+    halfCarry := uint8(0)
+    if ((cpu.A & 0xf) + (value & 0xf)) & 0x10 == 0x10 {
+        halfCarry = 1
+    }
+    cpu.A += value
+    cpu.SetFlagC(carry)
+    cpu.SetFlagH(halfCarry)
+
+    z := uint8(0)
+    if cpu.A == 0 {
+        z = 1
+    }
+
+    cpu.SetFlagZ(z)
+    cpu.SetFlagN(0)
+}
+
+func (cpu *CPU) doAdcA(value uint8) {
+    oldCarry := cpu.GetFlagC()
+    carry := uint8(0)
+    if uint32(cpu.A) + uint32(value) + uint32(oldCarry) > 0xff {
+        carry = 1
+    }
+    halfCarry := uint8(0)
+    if ((cpu.A & 0xf) + (value & 0xf) + oldCarry) & 0x10 == 0x10 {
+        halfCarry = 1
+    }
+    cpu.A += value + oldCarry
+    cpu.SetFlagC(carry)
+    cpu.SetFlagH(halfCarry)
+
+    z := uint8(0)
+    if cpu.A == 0 {
+        z = 1
+    }
+
+    cpu.SetFlagZ(z)
+    cpu.SetFlagN(0)
+}
+
+func (cpu *CPU) doSbcA(value uint8) {
+    oldCarry := cpu.GetFlagC()
+
+    carry := uint8(0)
+    if uint16(value) + uint16(oldCarry) > uint16(cpu.A) {
+        carry = 1
+    }
+
+    halfCarry := uint8(0)
+    if ((cpu.A & 0xf) - (value & 0xf) - oldCarry) & 0x10 == 0x10 {
+        halfCarry = 1
+    }
+
+    cpu.A -= value
+    cpu.A -= oldCarry
+    cpu.SetFlagN(1)
+    cpu.SetFlagC(carry)
+    cpu.SetFlagH(halfCarry)
+
+    z := uint8(0)
+    if cpu.A == 0 {
+        z = 1
+    }
+
+    cpu.SetFlagZ(z)
+}
+
+func (cpu *CPU) doCpA(value uint8) {
+    carry := uint8(0)
+    if value > cpu.A {
+        carry = 1
+    }
+    halfCarry := uint8(0)
+    if ((cpu.A & 0xf) - (value & 0xf)) & 0x10 == 0x10 {
+        halfCarry = 1
+    }
+
+    cpu.SetFlagN(1)
+    cpu.SetFlagC(carry)
+    cpu.SetFlagH(halfCarry)
+    if cpu.A - value == 0 {
+        cpu.SetFlagZ(1)
+    } else {
+        cpu.SetFlagZ(0)
+    }
+}
+
+func (cpu *CPU) doAndA(value uint8) {
+    cpu.A &= value
+    cpu.SetFlagC(0)
+    cpu.SetFlagH(1)
+
+    z := uint8(0)
+    if cpu.A == 0 {
+        z = 1
+    }
+
+    cpu.SetFlagZ(z)
+    cpu.SetFlagN(0)
+}
+
+func (cpu *CPU) doSubA(value uint8) {
+    carry := uint8(0)
+    if value > cpu.A {
+        carry = 1
+    }
+    halfCarry := uint8(0)
+    if ((cpu.A & 0xf) - (value & 0xf)) & 0x10 == 0x10 {
+        halfCarry = 1
+    }
+
+    cpu.A -= value
+    cpu.SetFlagN(1)
+    cpu.SetFlagC(carry)
+    cpu.SetFlagH(halfCarry)
+
+    z := uint8(0)
+    if cpu.A == 0 {
+        z = 1
+    }
+
+    cpu.SetFlagZ(z)
+}
+
+func (cpu *CPU) doOrA(value uint8) {
+    cpu.A |= value
+    cpu.SetFlagC(0)
+    cpu.SetFlagH(0)
+    if cpu.A == 0 {
+        cpu.SetFlagZ(1)
+    } else {
+        cpu.SetFlagZ(0)
+    }
+    cpu.SetFlagN(0)
+}
+
+func (cpu *CPU) doXorA(value uint8) {
+    cpu.A ^= value
+    cpu.SetFlagC(0)
+    cpu.SetFlagH(0)
+
+    z := uint8(0)
+    if cpu.A == 0 {
+        z = 1
+    }
+
+    cpu.SetFlagZ(z)
+    cpu.SetFlagN(0)
 }
 
 func (cpu *CPU) Execute(instruction Instruction) {
@@ -1223,6 +1387,7 @@ func (cpu *CPU) Execute(instruction Instruction) {
 
         case AddAR8:
             cpu.Cycles += 1
+            cpu.PC += 1
             var value uint8
 
             if instruction.R8_1 == R8HL {
@@ -1231,49 +1396,12 @@ func (cpu *CPU) Execute(instruction Instruction) {
                 value = cpu.GetRegister8(instruction.R8_1)
             }
 
-            carry := uint8(0)
-            if uint32(cpu.A) + uint32(value) > 0xff {
-                carry = 1
-            }
-            halfCarry := uint8(0)
-            if ((cpu.A & 0xf) + (value & 0xf)) & 0x10 == 0x10 {
-                halfCarry = 1
-            }
-            cpu.A += value
-            cpu.SetFlagC(carry)
-            cpu.SetFlagH(halfCarry)
-
-            z := uint8(0)
-            if cpu.A == 0 {
-                z = 1
-            }
-
-            cpu.SetFlagZ(z)
-            cpu.SetFlagN(0)
-
-            cpu.PC += 1
+            cpu.doAddA(value)
 
         case AddAImmediate:
             cpu.Cycles += 2
-            value := instruction.Immediate8
-            carry := uint8(0)
-            if uint32(cpu.A) + uint32(value) > 0xff {
-                carry = 1
-            }
-            halfCarry := uint8(0)
-            if ((cpu.A & 0xf) + (value & 0xf)) & 0x10 == 0x10 {
-                halfCarry = 1
-            }
-            cpu.A += value
-            cpu.SetFlagC(carry)
-            cpu.SetFlagH(halfCarry)
-            if cpu.A == 0 {
-                cpu.SetFlagZ(1)
-            } else {
-                cpu.SetFlagZ(0)
-            }
-            cpu.SetFlagN(0)
             cpu.PC += 2
+            cpu.doAddA(instruction.Immediate8)
 
         case LdHlSpImmediate8:
             cpu.Cycles += 3
@@ -1313,6 +1441,7 @@ func (cpu *CPU) Execute(instruction Instruction) {
 
         case AdcAR8:
             cpu.Cycles += 1
+            cpu.PC += 1
             var value uint8
 
             if instruction.R8_1 == R8HL {
@@ -1320,188 +1449,90 @@ func (cpu *CPU) Execute(instruction Instruction) {
             } else {
                 value = cpu.GetRegister8(instruction.R8_1)
             }
-            oldCarry := cpu.GetFlagC()
-            carry := uint8(0)
-            if uint32(cpu.A) + uint32(value) + uint32(oldCarry) > 0xff {
-                carry = 1
-            }
-            halfCarry := uint8(0)
-            if ((cpu.A & 0xf) + (value & 0xf) + oldCarry) & 0x10 == 0x10 {
-                halfCarry = 1
-            }
-            cpu.A += value + oldCarry
-            cpu.SetFlagC(carry)
-            cpu.SetFlagH(halfCarry)
 
-            z := uint8(0)
-            if cpu.A == 0 {
-                z = 1
-            }
-
-            cpu.SetFlagZ(z)
-            cpu.SetFlagN(0)
-
-            cpu.PC += 1
+            cpu.doAdcA(value)
 
         case AdcAImmediate:
             cpu.Cycles += 2
-            value := instruction.Immediate8
-            oldCarry := cpu.GetFlagC()
-            carry := uint8(0)
-            if uint32(cpu.A) + uint32(value) + uint32(oldCarry) > 0xff {
-                carry = 1
-            }
-            halfCarry := uint8(0)
-            if ((cpu.A & 0xf) + (value & 0xf) + oldCarry) & 0x10 == 0x10 {
-                halfCarry = 1
-            }
-            cpu.A += value + oldCarry
-            cpu.SetFlagC(carry)
-            cpu.SetFlagH(halfCarry)
-            cpu.SetFlagZ(cpu.A)
-            cpu.SetFlagN(0)
+            cpu.PC += 2
+            cpu.doAdcA(instruction.Immediate8)
 
         case AndAR8:
             cpu.Cycles += 1
+            cpu.PC += 1
+
             var value uint8
             if instruction.R8_1 == R8HL {
                 value = cpu.LoadMemory8(cpu.HL)
             } else {
                 value = cpu.GetRegister8(instruction.R8_1)
             }
-            cpu.A &= value
-            cpu.SetFlagC(0)
-            cpu.SetFlagH(1)
 
-            z := uint8(0)
-            if cpu.A == 0 {
-                z = 1
-            }
-
-            cpu.SetFlagZ(z)
-            cpu.SetFlagN(0)
-
-            cpu.PC += 1
+            cpu.doAndA(value)
 
         case AndAImmediate:
             cpu.Cycles += 2
-            value := instruction.Immediate8
-            cpu.A &= value
-            cpu.SetFlagC(0)
-            cpu.SetFlagH(1)
-            cpu.SetFlagZ(cpu.A)
-            cpu.SetFlagN(0)
+            cpu.PC += 2
+
+            cpu.doAndA(instruction.Immediate8)
 
         case XorAR8:
             cpu.Cycles += 1
+            cpu.PC += 1
+
             var value uint8
             if instruction.R8_1 == R8HL {
                 value = cpu.LoadMemory8(cpu.HL)
             } else {
                 value = cpu.GetRegister8(instruction.R8_1)
             }
-            cpu.A ^= value
-            cpu.SetFlagC(0)
-            cpu.SetFlagH(0)
 
-            z := uint8(0)
-            if cpu.A == 0 {
-                z = 1
-            }
-
-            cpu.SetFlagZ(z)
-            cpu.SetFlagN(0)
-
-            cpu.PC += 1
+            cpu.doXorA(value)
 
         case XorAImmediate:
             cpu.Cycles += 2
-            value := instruction.Immediate8
-            cpu.A ^= value
-            cpu.SetFlagC(0)
-            cpu.SetFlagH(0)
-            cpu.SetFlagZ(cpu.A)
-            cpu.SetFlagN(0)
+            cpu.PC += 2
+            cpu.doXorA(instruction.Immediate8)
 
         case OrAR8:
             cpu.Cycles += 1
+            cpu.PC += 1
+
             var value uint8
             if instruction.R8_1 == R8HL {
                 value = cpu.LoadMemory8(cpu.HL)
             } else {
                 value = cpu.GetRegister8(instruction.R8_1)
             }
-            cpu.A |= value
-            cpu.SetFlagC(0)
-            cpu.SetFlagH(0)
-            if cpu.A == 0 {
-                cpu.SetFlagZ(1)
-            } else {
-                cpu.SetFlagZ(0)
-            }
-            cpu.SetFlagN(0)
 
-            cpu.PC += 1
+            cpu.doOrA(value)
 
         case OrAImmediate:
             cpu.Cycles += 2
-            value := instruction.Immediate8
-            cpu.A |= value
-            cpu.SetFlagC(0)
-            cpu.SetFlagH(0)
-            cpu.SetFlagZ(cpu.A)
-            cpu.SetFlagN(0)
+            cpu.PC += 2
+            cpu.doOrA(instruction.Immediate8)
 
         case SubAR8:
             cpu.Cycles += 1
+            cpu.PC += 1
+
             var value uint8
             if instruction.R8_1 == R8HL {
                 value = cpu.LoadMemory8(cpu.HL)
             } else {
                 value = cpu.GetRegister8(instruction.R8_1)
             }
-            carry := uint8(0)
-            if value > cpu.A {
-                carry = 1
-            }
-            halfCarry := uint8(0)
-            if ((cpu.A & 0xf) - (value & 0xf)) & 0x10 == 0x10 {
-                halfCarry = 1
-            }
 
-            cpu.A -= value
-            cpu.SetFlagN(1)
-            cpu.SetFlagC(carry)
-            cpu.SetFlagH(halfCarry)
-
-            z := uint8(0)
-            if cpu.A == 0 {
-                z = 1
-            }
-
-            cpu.SetFlagZ(z)
-            cpu.PC += 1
+            cpu.doSubA(value)
 
         case SubAImmediate:
             cpu.Cycles += 2
-            value := instruction.Immediate8
-            carry := uint8(0)
-            if value > cpu.A {
-                carry = 1
-            }
-            halfCarry := uint8(0)
-            if ((cpu.A & 0xf) - (value & 0xf)) & 0x10 == 0x10 {
-                halfCarry = 1
-            }
-
-            cpu.A -= value
-            cpu.SetFlagN(1)
-            cpu.SetFlagC(carry)
-            cpu.SetFlagH(halfCarry)
-            cpu.SetFlagZ(cpu.A)
+            cpu.PC += 2
+            cpu.doSubA(instruction.Immediate8)
 
         case SbcAR8:
             cpu.Cycles += 1
+            cpu.PC += 1
 
             var value uint8
             if instruction.R8_1 == R8HL {
@@ -1510,56 +1541,18 @@ func (cpu *CPU) Execute(instruction Instruction) {
                 value = cpu.GetRegister8(instruction.R8_1)
             }
 
-            oldCarry := cpu.GetFlagC()
-
-            carry := uint8(0)
-            if uint16(value) + uint16(oldCarry) > uint16(cpu.A) {
-                carry = 1
-            }
-
-            halfCarry := uint8(0)
-            if ((cpu.A & 0xf) - (value & 0xf) - oldCarry) & 0x10 == 0x10 {
-                halfCarry = 1
-            }
-
-            cpu.A -= value
-            cpu.A -= oldCarry
-            cpu.SetFlagN(1)
-            cpu.SetFlagC(carry)
-            cpu.SetFlagH(halfCarry)
-
-            z := uint8(0)
-            if cpu.A == 0 {
-                z = 1
-            }
-
-            cpu.SetFlagZ(z)
-
-            cpu.PC += 1
+            cpu.doSbcA(value)
 
         case SbcAImmediate:
             cpu.Cycles += 2
-            oldCarry := cpu.GetFlagC()
-            value := instruction.Immediate8
-            carry := uint8(0)
-            if value + oldCarry > cpu.A {
-                carry = 1
-            }
-            halfCarry := uint8(0)
-            if ((cpu.A & 0xf) - (value & 0xf) - oldCarry) & 0x10 == 0x10 {
-                halfCarry = 1
-            }
-
-            cpu.A -= value
-            cpu.A -= oldCarry
-            cpu.SetFlagN(1)
-            cpu.SetFlagC(carry)
-            cpu.SetFlagH(halfCarry)
-            cpu.SetFlagZ(cpu.A)
+            cpu.PC += 2
+            cpu.doSbcA(instruction.Immediate8)
 
         case CpAR8:
             // same as sub, but don't store result
             cpu.Cycles += 1
+            cpu.PC += 1
+
             var value uint8
             if instruction.R8_1 == R8HL {
                 value = cpu.LoadMemory8(cpu.HL)
@@ -1567,44 +1560,13 @@ func (cpu *CPU) Execute(instruction Instruction) {
                 value = cpu.GetRegister8(instruction.R8_1)
             }
 
-            carry := uint8(0)
-            if value > cpu.A {
-                carry = 1
-            }
-            halfCarry := uint8(0)
-            if ((cpu.A & 0xf) - (value & 0xf)) & 0x10 == 0x10 {
-                halfCarry = 1
-            }
-
-            cpu.SetFlagN(1)
-            cpu.SetFlagC(carry)
-            cpu.SetFlagH(halfCarry)
-            if cpu.A - value == 0 {
-                cpu.SetFlagZ(1)
-            } else {
-                cpu.SetFlagZ(0)
-            }
-
-            cpu.PC += 1
+            cpu.doCpA(value)
 
         case CpAImmediate:
             // same as sub, but don't store result
             cpu.Cycles += 2
-            value := instruction.Immediate8
-
-            carry := uint8(0)
-            if value > cpu.A {
-                carry = 1
-            }
-            halfCarry := uint8(0)
-            if ((cpu.A & 0xf) - (value & 0xf)) & 0x10 == 0x10 {
-                halfCarry = 1
-            }
-
-            cpu.SetFlagN(1)
-            cpu.SetFlagC(carry)
-            cpu.SetFlagH(halfCarry)
-            cpu.SetFlagZ(cpu.A)
+            cpu.PC += 2
+            cpu.doCpA(instruction.Immediate8)
 
         case AddHLBC:
             cpu.Cycles += 2
