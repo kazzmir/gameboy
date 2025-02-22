@@ -308,7 +308,7 @@ func (opcode Opcode) String() string {
         case CallCImmediate16: return "call c, nn"
 
         case CallImmediate16: return "call nn"
-        case CallResetVector: return "call n"
+        case CallResetVector: return "rst n"
 
         case DAA: return "daa"
 
@@ -2428,7 +2428,7 @@ func (cpu *CPU) DecodeInstruction() (Instruction, uint8) {
 
                     case 0b111:
                         address := uint8((instruction >> 3) & 0b111)
-                        return Instruction{Opcode: CallResetVector, Immediate8: address}, 1
+                        return Instruction{Opcode: CallResetVector, Immediate8: address*8}, 1
                         // return "rst tgt3"
                 }
 
