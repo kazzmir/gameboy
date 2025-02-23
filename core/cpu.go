@@ -379,15 +379,15 @@ type Instruction struct {
 }
 
 // pass in non-zero set value to set the bit to 1, 0 to set to 0
-func setBit(value uint8, bit uint8, set uint8) uint8 {
-    if set == 0 {
+func setBit(value uint8, bit uint8, set bool) uint8 {
+    if !set {
         return value & ^(1 << bit)
     }
     return value | (1 << bit)
 }
 
-func (cpu *CPU) SetFlagC(value uint8) {
-    cpu.F = setBit(cpu.F, 4, value)
+func (cpu *CPU) SetFlagC(on bool) {
+    cpu.F = setBit(cpu.F, 4, on)
 }
 
 func (cpu *CPU) GetFlagC() uint8 {
@@ -406,16 +406,16 @@ func (cpu *CPU) GetFlagH() uint8 {
     return (cpu.F >> 5) & 0b1
 }
 
-func (cpu *CPU) SetFlagH(value uint8) {
-    cpu.F = setBit(cpu.F, 5, value)
+func (cpu *CPU) SetFlagH(on bool) {
+    cpu.F = setBit(cpu.F, 5, on)
 }
 
-func (cpu *CPU) SetFlagN(value uint8) {
-    cpu.F = setBit(cpu.F, 6, value)
+func (cpu *CPU) SetFlagN(on bool) {
+    cpu.F = setBit(cpu.F, 6, on)
 }
 
-func (cpu *CPU) SetFlagZ(value uint8) {
-    cpu.F = setBit(cpu.F, 7, value)
+func (cpu *CPU) SetFlagZ(on bool) {
+    cpu.F = setBit(cpu.F, 7, on)
 }
 
 func RotateRight(value uint8) (uint8, uint8) {
@@ -452,18 +452,18 @@ func (cpu *CPU) AddHL(value uint16) {
     halfCarry := ((cpu.HL & 0xfff) + (value & 0xfff)) & 0x1000 == 0x1000
 
     cpu.HL += value
-    cpu.SetFlagN(0)
+    cpu.SetFlagN(false)
 
     if halfCarry {
-        cpu.SetFlagH(1)
+        cpu.SetFlagH(true)
     } else {
-        cpu.SetFlagH(0)
+        cpu.SetFlagH(false)
     }
 
     if carry {
-        cpu.SetFlagC(1)
+        cpu.SetFlagC(true)
     } else {
-        cpu.SetFlagC(0)
+        cpu.SetFlagC(false)
     }
 }
 
@@ -586,16 +586,10 @@ func (cpu *CPU) doAddA(value uint8) {
         halfCarry = 1
     }
     cpu.A += value
-    cpu.SetFlagC(carry)
-    cpu.SetFlagH(halfCarry)
-
-    z := uint8(0)
-    if cpu.A == 0 {
-        z = 1
-    }
-
-    cpu.SetFlagZ(z)
-    cpu.SetFlagN(0)
+    cpu.SetFlagC(carry == 1)
+    cpu.SetFlagH(halfCarry == 1)
+    cpu.SetFlagZ(cpu.A == 0)
+    cpu.SetFlagN(false)
 }
 
 func (cpu *CPU) doAdcA(value uint8) {
@@ -609,16 +603,10 @@ func (cpu *CPU) doAdcA(value uint8) {
         halfCarry = 1
     }
     cpu.A += value + oldCarry
-    cpu.SetFlagC(carry)
-    cpu.SetFlagH(halfCarry)
-
-    z := uint8(0)
-    if cpu.A == 0 {
-        z = 1
-    }
-
-    cpu.SetFlagZ(z)
-    cpu.SetFlagN(0)
+    cpu.SetFlagC(carry == 1)
+    cpu.SetFlagH(halfCarry == 1)
+    cpu.SetFlagZ(cpu.A == 0)
+    cpu.SetFlagN(false)
 }
 
 func (cpu *CPU) doSbcA(value uint8) {
@@ -636,16 +624,10 @@ func (cpu *CPU) doSbcA(value uint8) {
 
     cpu.A -= value
     cpu.A -= oldCarry
-    cpu.SetFlagN(1)
-    cpu.SetFlagC(carry)
-    cpu.SetFlagH(halfCarry)
-
-    z := uint8(0)
-    if cpu.A == 0 {
-        z = 1
-    }
-
-    cpu.SetFlagZ(z)
+    cpu.SetFlagN(true)
+    cpu.SetFlagC(carry == 1)
+    cpu.SetFlagH(halfCarry == 1)
+    cpu.SetFlagZ(cpu.A == 0)
 }
 
 func (cpu *CPU) doCpA(value uint8) {
@@ -658,28 +640,18 @@ func (cpu *CPU) doCpA(value uint8) {
         halfCarry = 1
     }
 
-    cpu.SetFlagN(1)
-    cpu.SetFlagC(carry)
-    cpu.SetFlagH(halfCarry)
-    if cpu.A - value == 0 {
-        cpu.SetFlagZ(1)
-    } else {
-        cpu.SetFlagZ(0)
-    }
+    cpu.SetFlagN(true)
+    cpu.SetFlagC(carry == 1)
+    cpu.SetFlagH(halfCarry == 1)
+    cpu.SetFlagZ(cpu.A - value == 0)
 }
 
 func (cpu *CPU) doAndA(value uint8) {
     cpu.A &= value
-    cpu.SetFlagC(0)
-    cpu.SetFlagH(1)
-
-    z := uint8(0)
-    if cpu.A == 0 {
-        z = 1
-    }
-
-    cpu.SetFlagZ(z)
-    cpu.SetFlagN(0)
+    cpu.SetFlagC(false)
+    cpu.SetFlagH(true)
+    cpu.SetFlagZ(cpu.A == 0)
+    cpu.SetFlagN(false)
 }
 
 func (cpu *CPU) doSubA(value uint8) {
@@ -693,42 +665,26 @@ func (cpu *CPU) doSubA(value uint8) {
     }
 
     cpu.A -= value
-    cpu.SetFlagN(1)
-    cpu.SetFlagC(carry)
-    cpu.SetFlagH(halfCarry)
-
-    z := uint8(0)
-    if cpu.A == 0 {
-        z = 1
-    }
-
-    cpu.SetFlagZ(z)
+    cpu.SetFlagN(true)
+    cpu.SetFlagC(carry == 1)
+    cpu.SetFlagH(halfCarry == 1)
+    cpu.SetFlagZ(cpu.A == 0)
 }
 
 func (cpu *CPU) doOrA(value uint8) {
     cpu.A |= value
-    cpu.SetFlagC(0)
-    cpu.SetFlagH(0)
-    if cpu.A == 0 {
-        cpu.SetFlagZ(1)
-    } else {
-        cpu.SetFlagZ(0)
-    }
-    cpu.SetFlagN(0)
+    cpu.SetFlagC(false)
+    cpu.SetFlagH(false)
+    cpu.SetFlagZ(cpu.A == 0)
+    cpu.SetFlagN(false)
 }
 
 func (cpu *CPU) doXorA(value uint8) {
     cpu.A ^= value
-    cpu.SetFlagC(0)
-    cpu.SetFlagH(0)
-
-    z := uint8(0)
-    if cpu.A == 0 {
-        z = 1
-    }
-
-    cpu.SetFlagZ(z)
-    cpu.SetFlagN(0)
+    cpu.SetFlagC(false)
+    cpu.SetFlagH(false)
+    cpu.SetFlagZ(cpu.A == 0)
+    cpu.SetFlagN(false)
 }
 
 func (cpu *CPU) Execute(instruction Instruction) {
@@ -948,13 +904,9 @@ func (cpu *CPU) Execute(instruction Instruction) {
             if lower == 0b1111 {
                 h = 1
             }
-            cpu.SetFlagH(h)
-            cpu.SetFlagN(0)
-            z := uint8(0)
-            if cpu.BC >> 8 == 0 {
-                z = 1
-            }
-            cpu.SetFlagZ(z)
+            cpu.SetFlagH(h == 1)
+            cpu.SetFlagN(false)
+            cpu.SetFlagZ(cpu.BC >> 8 == 0)
             cpu.PC += 1
 
         case Inc8C:
@@ -968,16 +920,11 @@ func (cpu *CPU) Execute(instruction Instruction) {
             if lower == 0b1111 {
                 h = 1
             }
-            cpu.SetFlagH(h)
+            cpu.SetFlagH(h == 1)
 
             c += 1
-            cpu.SetFlagN(0)
-
-            z := uint8(0)
-            if c == 0 {
-                z = 1
-            }
-            cpu.SetFlagZ(z)
+            cpu.SetFlagN(false)
+            cpu.SetFlagZ(c == 0)
 
             cpu.BC = (uint16(b) << 8) | uint16(c)
             cpu.PC += 1
@@ -993,15 +940,11 @@ func (cpu *CPU) Execute(instruction Instruction) {
             if lower == 0b1111 {
                 h = 1
             }
-            cpu.SetFlagH(h)
+            cpu.SetFlagH(h == 1)
 
             d += 1
-            cpu.SetFlagN(0)
-            z := uint8(0)
-            if d == 0 {
-                z = 1
-            }
-            cpu.SetFlagZ(z)
+            cpu.SetFlagN(false)
+            cpu.SetFlagZ(d == 0)
             cpu.DE = (uint16(d) << 8) | uint16(e)
             cpu.PC += 1
 
@@ -1014,17 +957,11 @@ func (cpu *CPU) Execute(instruction Instruction) {
             if e & 0b1111 == 0b1111 {
                 h = 1
             }
-            cpu.SetFlagH(h)
+            cpu.SetFlagH(h == 1)
 
             e += 1
-            cpu.SetFlagN(0)
-
-            z := uint8(0)
-            if e == 0 {
-                z = 1
-            }
-
-            cpu.SetFlagZ(z)
+            cpu.SetFlagN(false)
+            cpu.SetFlagZ(e == 0)
             cpu.DE = (uint16(d) << 8) | uint16(e)
             cpu.PC += 1
 
@@ -1037,18 +974,12 @@ func (cpu *CPU) Execute(instruction Instruction) {
             if h & 0b1111 == 0b1111 {
                 carry = 1
             }
-            cpu.SetFlagH(carry)
+            cpu.SetFlagH(carry == 1)
 
             h += 1
 
-            cpu.SetFlagN(0)
-
-            z := uint8(0)
-            if h == 0 {
-                z = 1
-            }
-
-            cpu.SetFlagZ(z)
+            cpu.SetFlagN(false)
+            cpu.SetFlagZ(h == 0)
             cpu.HL = (uint16(h) << 8) | uint16(l)
             cpu.PC += 1
 
@@ -1061,40 +992,28 @@ func (cpu *CPU) Execute(instruction Instruction) {
             if l & 0b1111 == 0b1111 {
                 carry = 1
             }
-            cpu.SetFlagH(carry)
+            cpu.SetFlagH(carry == 1)
 
             l += 1
 
-            cpu.SetFlagN(0)
-
-            z := uint8(0)
-            if l == 0 {
-                z = 1
-            }
-
-            cpu.SetFlagZ(z)
+            cpu.SetFlagN(false)
+            cpu.SetFlagZ(l == 0)
             cpu.HL = (uint16(h) << 8) | uint16(l)
             cpu.PC += 1
 
         case Inc8HL:
             cpu.Cycles += 3
             value := cpu.LoadMemory8(cpu.HL)
-            cpu.SetFlagN(0)
+            cpu.SetFlagN(false)
 
             carry := uint8(0)
             if value & 0b1111 == 0b1111 {
                 carry = 1
             }
-            cpu.SetFlagH(carry)
+            cpu.SetFlagH(carry == 1)
 
             value += 1
-
-            z := uint8(0)
-            if value == 0 {
-                z = 1
-            }
-
-            cpu.SetFlagZ(z)
+            cpu.SetFlagZ(value == 0)
 
             cpu.StoreMemory(cpu.HL, value)
             cpu.PC += 1
@@ -1107,17 +1026,12 @@ func (cpu *CPU) Execute(instruction Instruction) {
             if a & 0b1111 == 0b1111 {
                 carry = 1
             }
-            cpu.SetFlagH(carry)
+            cpu.SetFlagH(carry == 1)
 
             a += 1
-            cpu.SetFlagN(0)
+            cpu.SetFlagN(false)
             cpu.A = a
-
-            z := uint8(0)
-            if a == 0 {
-                z = 1
-            }
-            cpu.SetFlagZ(z)
+            cpu.SetFlagZ(a == 0)
 
             cpu.PC += 1
 
@@ -1131,14 +1045,10 @@ func (cpu *CPU) Execute(instruction Instruction) {
                 h = 1
             }
 
-            cpu.SetFlagH(h)
+            cpu.SetFlagH(h == 1)
             b -= 1
-            cpu.SetFlagN(1)
-            z := uint8(0)
-            if b == 0 {
-                z = 1
-            }
-            cpu.SetFlagZ(z)
+            cpu.SetFlagN(true)
+            cpu.SetFlagZ(b == 0)
             cpu.BC = (uint16(b) << 8) | uint16(c)
             cpu.PC += 1
 
@@ -1152,17 +1062,11 @@ func (cpu *CPU) Execute(instruction Instruction) {
                 h = 1
             }
 
-            cpu.SetFlagH(h)
+            cpu.SetFlagH(h == 1)
 
             c -= 1
-            cpu.SetFlagN(1)
-
-            z := uint8(0)
-            if c == 0 {
-                z = 1
-            }
-
-            cpu.SetFlagZ(z)
+            cpu.SetFlagN(true)
+            cpu.SetFlagZ(c == 0)
             cpu.BC = (uint16(b) << 8) | uint16(c)
             cpu.PC += 1
 
@@ -1176,16 +1080,10 @@ func (cpu *CPU) Execute(instruction Instruction) {
                 h = 1
             }
 
-            cpu.SetFlagH(h)
+            cpu.SetFlagH(h == 1)
             d -= 1
-            cpu.SetFlagN(1)
-
-            z := uint8(0)
-            if d == 0 {
-                z = 1
-            }
-
-            cpu.SetFlagZ(z)
+            cpu.SetFlagN(true)
+            cpu.SetFlagZ(d == 0)
             cpu.DE = (uint16(d) << 8) | uint16(e)
             cpu.PC += 1
 
@@ -1199,16 +1097,10 @@ func (cpu *CPU) Execute(instruction Instruction) {
                 h = 1
             }
 
-            cpu.SetFlagH(h)
+            cpu.SetFlagH(h == 1)
             e -= 1
-            cpu.SetFlagN(1)
-
-            z := uint8(0)
-            if e == 0 {
-                z = 1
-            }
-
-            cpu.SetFlagZ(z)
+            cpu.SetFlagN(true)
+            cpu.SetFlagZ(e == 0)
             cpu.DE = (uint16(d) << 8) | uint16(e)
             cpu.PC += 1
 
@@ -1222,16 +1114,10 @@ func (cpu *CPU) Execute(instruction Instruction) {
                 carry = 1
             }
 
-            cpu.SetFlagH(carry)
+            cpu.SetFlagH(carry == 1)
             h -= 1
-            cpu.SetFlagN(1)
-
-            z := uint8(0)
-            if h == 0 {
-                z = 1
-            }
-
-            cpu.SetFlagZ(z)
+            cpu.SetFlagN(true)
+            cpu.SetFlagZ(h == 0)
             cpu.HL = (uint16(h) << 8) | uint16(l)
             cpu.PC += 1
 
@@ -1245,17 +1131,12 @@ func (cpu *CPU) Execute(instruction Instruction) {
                 carry = 1
             }
 
-            cpu.SetFlagH(carry)
+            cpu.SetFlagH(carry == 1)
 
             l -= 1
-            cpu.SetFlagN(1)
+            cpu.SetFlagN(true)
 
-            z := uint8(0)
-            if l == 0 {
-                z = 1
-            }
-
-            cpu.SetFlagZ(z)
+            cpu.SetFlagZ(l == 0)
             cpu.HL = (uint16(h) << 8) | uint16(l)
             cpu.PC += 1
 
@@ -1267,17 +1148,11 @@ func (cpu *CPU) Execute(instruction Instruction) {
             if value & 0b1111 == 0 {
                 carry = 1
             }
-            cpu.SetFlagH(carry)
+            cpu.SetFlagH(carry == 1)
 
             value -= 1
-            cpu.SetFlagN(1)
-
-            z := uint8(0)
-            if value == 0 {
-                z = 1
-            }
-
-            cpu.SetFlagZ(z)
+            cpu.SetFlagN(true)
+            cpu.SetFlagZ(value == 0)
             cpu.StoreMemory(cpu.HL, value)
 
             cpu.PC += 1
@@ -1290,17 +1165,11 @@ func (cpu *CPU) Execute(instruction Instruction) {
             if a & 0b1111 == 0 {
                 carry = 1
             }
-            cpu.SetFlagH(carry)
+            cpu.SetFlagH(carry == 1)
 
             a -= 1
-            cpu.SetFlagN(1)
-
-            z := uint8(0)
-            if a == 0 {
-                z = 1
-            }
-
-            cpu.SetFlagZ(z)
+            cpu.SetFlagN(true)
+            cpu.SetFlagZ(a == 0)
             cpu.A = a
 
             cpu.PC += 1
@@ -1431,10 +1300,10 @@ func (cpu *CPU) Execute(instruction Instruction) {
             }
 
             cpu.HL = uint16(int32(cpu.SP) + int32(value))
-            cpu.SetFlagC(carry)
-            cpu.SetFlagH(halfCarry)
-            cpu.SetFlagZ(0)
-            cpu.SetFlagN(0)
+            cpu.SetFlagC(carry == 1)
+            cpu.SetFlagH(halfCarry == 1)
+            cpu.SetFlagZ(false)
+            cpu.SetFlagN(false)
 
         case AddSpImmediate8:
             cpu.Cycles += 4
@@ -1454,10 +1323,10 @@ func (cpu *CPU) Execute(instruction Instruction) {
 
             low += value
             cpu.SP = (uint16(cpu.SP) & 0xff00) | uint16(low)
-            cpu.SetFlagC(carry)
-            cpu.SetFlagH(halfCarry)
-            cpu.SetFlagZ(0)
-            cpu.SetFlagN(0)
+            cpu.SetFlagC(carry == 1)
+            cpu.SetFlagH(halfCarry == 1)
+            cpu.SetFlagZ(false)
+            cpu.SetFlagN(false)
 
         case AdcAR8:
             cpu.Cycles += 1
@@ -1608,16 +1477,16 @@ func (cpu *CPU) Execute(instruction Instruction) {
         case CPL:
             cpu.Cycles += 1
             cpu.A = ^cpu.A
-            cpu.SetFlagN(1)
-            cpu.SetFlagH(1)
+            cpu.SetFlagN(true)
+            cpu.SetFlagH(true)
             cpu.PC += 1
 
         case CCF:
             cpu.Cycles += 1
             carry := cpu.GetFlagC()
-            cpu.SetFlagC(1 - carry)
-            cpu.SetFlagH(0)
-            cpu.SetFlagN(0)
+            cpu.SetFlagC((1 - carry) == 1)
+            cpu.SetFlagH(false)
+            cpu.SetFlagN(false)
 
             cpu.PC += 1
 
@@ -1626,10 +1495,10 @@ func (cpu *CPU) Execute(instruction Instruction) {
 
             newA, carry := RotateLeft(cpu.A)
             cpu.A = newA
-            cpu.SetFlagZ(0)
-            cpu.SetFlagH(0)
-            cpu.SetFlagN(0)
-            cpu.SetFlagC(carry)
+            cpu.SetFlagZ(false)
+            cpu.SetFlagH(false)
+            cpu.SetFlagN(false)
+            cpu.SetFlagC(carry == 1)
 
             cpu.PC += 1
 
@@ -1650,24 +1519,20 @@ func (cpu *CPU) Execute(instruction Instruction) {
             } else {
                 cpu.SetRegister8(instruction.R8_1, newValue)
             }
-            if newValue == 0 {
-                cpu.SetFlagZ(1)
-            } else {
-                cpu.SetFlagZ(0)
-            }
-            cpu.SetFlagH(0)
-            cpu.SetFlagN(0)
-            cpu.SetFlagC(carry)
+            cpu.SetFlagZ(newValue == 0)
+            cpu.SetFlagH(false)
+            cpu.SetFlagN(false)
+            cpu.SetFlagC(carry == 1)
 
         case RRCA:
             cpu.Cycles += 1
 
             newA, carry := RotateRight(cpu.A)
             cpu.A = newA
-            cpu.SetFlagZ(0)
-            cpu.SetFlagH(0)
-            cpu.SetFlagN(0)
-            cpu.SetFlagC(carry)
+            cpu.SetFlagZ(false)
+            cpu.SetFlagH(false)
+            cpu.SetFlagN(false)
+            cpu.SetFlagC(carry == 1)
             cpu.PC += 1
 
         case RRC:
@@ -1687,14 +1552,10 @@ func (cpu *CPU) Execute(instruction Instruction) {
             } else {
                 cpu.SetRegister8(instruction.R8_1, newValue)
             }
-            if newValue == 0 {
-                cpu.SetFlagZ(1)
-            } else {
-                cpu.SetFlagZ(0)
-            }
-            cpu.SetFlagH(0)
-            cpu.SetFlagN(0)
-            cpu.SetFlagC(carry)
+            cpu.SetFlagZ(newValue == 0)
+            cpu.SetFlagH(false)
+            cpu.SetFlagN(false)
+            cpu.SetFlagC(carry == 1)
 
         case RLA:
             cpu.Cycles += 1
@@ -1703,10 +1564,10 @@ func (cpu *CPU) Execute(instruction Instruction) {
             newCarry := (cpu.A >> 7) & 0b1
             cpu.A = (cpu.A << 1) | oldCarry
 
-            cpu.SetFlagZ(0)
-            cpu.SetFlagH(0)
-            cpu.SetFlagN(0)
-            cpu.SetFlagC(newCarry)
+            cpu.SetFlagZ(false)
+            cpu.SetFlagH(false)
+            cpu.SetFlagN(false)
+            cpu.SetFlagC(newCarry == 1)
 
             cpu.PC += 1
 
@@ -1730,14 +1591,10 @@ func (cpu *CPU) Execute(instruction Instruction) {
             } else {
                 cpu.SetRegister8(instruction.R8_1, newValue)
             }
-            if newValue == 0 {
-                cpu.SetFlagZ(1)
-            } else {
-                cpu.SetFlagZ(0)
-            }
-            cpu.SetFlagH(0)
-            cpu.SetFlagN(0)
-            cpu.SetFlagC(newCarry)
+            cpu.SetFlagZ(newValue == 0)
+            cpu.SetFlagH(false)
+            cpu.SetFlagN(false)
+            cpu.SetFlagC(newCarry == 1)
 
         case RRA:
             cpu.Cycles += 1
@@ -1746,10 +1603,10 @@ func (cpu *CPU) Execute(instruction Instruction) {
             newCarry := cpu.A & 0b1
             cpu.A = (cpu.A >> 1) | (oldCarry << 7)
 
-            cpu.SetFlagZ(0)
-            cpu.SetFlagH(0)
-            cpu.SetFlagN(0)
-            cpu.SetFlagC(newCarry)
+            cpu.SetFlagZ(false)
+            cpu.SetFlagH(false)
+            cpu.SetFlagN(false)
+            cpu.SetFlagC(newCarry == 1)
             cpu.PC += 1
 
         case RR:
@@ -1772,14 +1629,10 @@ func (cpu *CPU) Execute(instruction Instruction) {
             } else {
                 cpu.SetRegister8(instruction.R8_1, newValue)
             }
-            if newValue == 0 {
-                cpu.SetFlagZ(1)
-            } else {
-                cpu.SetFlagZ(0)
-            }
-            cpu.SetFlagH(0)
-            cpu.SetFlagN(0)
-            cpu.SetFlagC(newCarry)
+            cpu.SetFlagZ(newValue == 0)
+            cpu.SetFlagH(false)
+            cpu.SetFlagN(false)
+            cpu.SetFlagC(newCarry == 1)
 
         case SLA:
             cpu.Cycles += 2
@@ -1799,14 +1652,10 @@ func (cpu *CPU) Execute(instruction Instruction) {
             } else {
                 cpu.SetRegister8(instruction.R8_1, newValue)
             }
-            if newValue == 0 {
-                cpu.SetFlagZ(1)
-            } else {
-                cpu.SetFlagZ(0)
-            }
-            cpu.SetFlagH(0)
-            cpu.SetFlagN(0)
-            cpu.SetFlagC(carry)
+            cpu.SetFlagZ(newValue == 0)
+            cpu.SetFlagH(false)
+            cpu.SetFlagN(false)
+            cpu.SetFlagC(carry == 1)
 
         case SRA:
             cpu.Cycles += 2
@@ -1826,14 +1675,10 @@ func (cpu *CPU) Execute(instruction Instruction) {
             } else {
                 cpu.SetRegister8(instruction.R8_1, newValue)
             }
-            if newValue == 0 {
-                cpu.SetFlagZ(1)
-            } else {
-                cpu.SetFlagZ(0)
-            }
-            cpu.SetFlagH(0)
-            cpu.SetFlagN(0)
-            cpu.SetFlagC(carry)
+            cpu.SetFlagZ(newValue == 0)
+            cpu.SetFlagH(false)
+            cpu.SetFlagN(false)
+            cpu.SetFlagC(carry == 1)
 
         case SRL:
             cpu.Cycles += 2
@@ -1853,14 +1698,10 @@ func (cpu *CPU) Execute(instruction Instruction) {
             } else {
                 cpu.SetRegister8(instruction.R8_1, newValue)
             }
-            if newValue == 0 {
-                cpu.SetFlagZ(1)
-            } else {
-                cpu.SetFlagZ(0)
-            }
-            cpu.SetFlagH(0)
-            cpu.SetFlagN(0)
-            cpu.SetFlagC(carry)
+            cpu.SetFlagZ(newValue == 0)
+            cpu.SetFlagH(false)
+            cpu.SetFlagN(false)
+            cpu.SetFlagC(carry == 1)
 
         case SWAP:
             cpu.Cycles += 2
@@ -1884,15 +1725,10 @@ func (cpu *CPU) Execute(instruction Instruction) {
                 cpu.SetRegister8(instruction.R8_1, newValue)
             }
 
-            cpu.SetFlagN(0)
-            cpu.SetFlagH(0)
-            cpu.SetFlagC(0)
-
-            if newValue == 0 {
-                cpu.SetFlagZ(1)
-            } else {
-                cpu.SetFlagZ(0)
-            }
+            cpu.SetFlagN(false)
+            cpu.SetFlagH(false)
+            cpu.SetFlagC(false)
+            cpu.SetFlagZ(newValue == 0)
 
         case Bit:
             cpu.Cycles += 2
@@ -1905,14 +1741,9 @@ func (cpu *CPU) Execute(instruction Instruction) {
                 value = cpu.GetRegister8(instruction.R8_1)
             }
 
-            if value & (1 << instruction.Immediate8) == 0 {
-                cpu.SetFlagZ(1)
-            } else {
-                cpu.SetFlagZ(0)
-            }
-
-            cpu.SetFlagN(0)
-            cpu.SetFlagH(1)
+            cpu.SetFlagZ(value & (1 << instruction.Immediate8) == 0)
+            cpu.SetFlagN(false)
+            cpu.SetFlagH(true)
 
         case Res:
             cpu.Cycles += 2
@@ -1985,22 +1816,18 @@ func (cpu *CPU) Execute(instruction Instruction) {
                 cpu.A -= offset
             }
 
-            z := uint8(0)
-            if cpu.A == 0 {
-                z = 1
-            }
-            cpu.SetFlagZ(z)
-            cpu.SetFlagH(0)
-            cpu.SetFlagC(c)
+            cpu.SetFlagZ(cpu.A == 0)
+            cpu.SetFlagH(false)
+            cpu.SetFlagC(c == 1)
 
             cpu.Cycles += 1
             cpu.PC += 1
 
         case SCF:
             cpu.Cycles += 1
-            cpu.SetFlagN(0)
-            cpu.SetFlagH(0)
-            cpu.SetFlagC(1)
+            cpu.SetFlagN(false)
+            cpu.SetFlagH(false)
+            cpu.SetFlagC(true)
             cpu.PC += 1
 
         default:
