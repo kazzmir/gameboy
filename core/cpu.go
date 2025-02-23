@@ -332,6 +332,9 @@ func (opcode Opcode) String() string {
         case LoadAMemHLI: return "ld a, (hl+)"
         case LoadAMemHLD: return "ld a, (hl-)"
 
+        case DisableInterrupts: return "di"
+        case EnableInterrupts: return "ei"
+
         case LdSpHl: return "ld sp, hl"
         case LdhCA: return "ldh (c), a"
         case LdhAC: return "ldh a, (c)"
@@ -759,6 +762,7 @@ func (cpu *CPU) Execute(instruction Instruction) {
         case LdSpHl:
             cpu.Cycles += 2
             cpu.HL = cpu.SP
+            cpu.PC += 1
 
         case LdhCA:
             cpu.Cycles += 2
@@ -873,10 +877,12 @@ func (cpu *CPU) Execute(instruction Instruction) {
         case DisableInterrupts:
             cpu.Cycles += 1
             cpu.InterruptFlag = false
+            cpu.PC += 1
 
         case EnableInterrupts:
             cpu.Cycles += 1
             cpu.InterruptFlag = true
+            cpu.PC += 1
 
         case IncBC:
             cpu.Cycles += 2
@@ -1269,6 +1275,7 @@ func (cpu *CPU) Execute(instruction Instruction) {
             cpu.StoreMemory(cpu.SP, cpu.A)
             cpu.SP -= 1
             cpu.StoreMemory(cpu.SP, cpu.F)
+            cpu.PC += 1
 
         case AddAR8:
             cpu.Cycles += 1
@@ -1290,10 +1297,12 @@ func (cpu *CPU) Execute(instruction Instruction) {
 
         case LdHlSpImmediate8:
             cpu.Cycles += 3
+            cpu.PC += 2
             value := int8(instruction.Immediate8)
 
             carry := uint8(0)
-            if int32(cpu.SP) + int32(value) > 0xffff {
+            if (cpu.SP & 0xff) + (uint16(value) & 0xff) > 0xff {
+            // if int32(cpu.SP) + int32(value) > 0xff {
                 carry = 1
             }
 
