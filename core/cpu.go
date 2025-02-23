@@ -761,7 +761,7 @@ func (cpu *CPU) Execute(instruction Instruction) {
 
         case LdSpHl:
             cpu.Cycles += 2
-            cpu.HL = cpu.SP
+            cpu.SP = cpu.HL
             cpu.PC += 1
 
         case LdhCA:
