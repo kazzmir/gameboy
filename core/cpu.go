@@ -770,6 +770,7 @@ func (cpu *CPU) Execute(instruction Instruction) {
             cpu.Cycles += 2
             address := 0xff00 + uint16(cpu.GetRegister8(R8C))
             cpu.A = cpu.LoadMemory8(address)
+            cpu.PC += 1
 
         case LdhImmediate8A:
             cpu.Cycles += 2
@@ -781,6 +782,7 @@ func (cpu *CPU) Execute(instruction Instruction) {
             cpu.Cycles += 3
             address := 0xff00 + uint16(instruction.Immediate8)
             cpu.A = cpu.LoadMemory8(address)
+            cpu.PC += 2
 
         case LdImmediate16A:
             cpu.Cycles += 4
@@ -1226,8 +1228,9 @@ func (cpu *CPU) Execute(instruction Instruction) {
             cpu.SP += 1
             high := cpu.LoadMemory8(cpu.SP)
             cpu.SP += 1
-            cpu.F = low
+            cpu.F = low & 0b11110000
             cpu.A = high
+            cpu.PC += 1
 
         case PopR16:
             cpu.Cycles += 3
@@ -2227,6 +2230,11 @@ func (cpu *CPU) DecodeInstruction() (Instruction, uint8) {
                 return Instruction{Opcode: CallResetVector, Immediate8: address*8}, 1
             }
 
+            if instruction == 0b11101001 {
+                return Instruction{Opcode: JpHL}, 1
+                // return "jp hl"
+            }
+
             if instruction >> 5 == 0b110 {
                 switch instruction & 0b111 {
                     case 0b000:
@@ -2288,9 +2296,6 @@ func (cpu *CPU) DecodeInstruction() (Instruction, uint8) {
                     case 0b11011001:
                         return Instruction{Opcode: ReturnFromInterrupt}, 1
                         // return "reti"
-                    case 0b11101001:
-                        return Instruction{Opcode: JpHL}, 1
-                        // return "jp hl"
 
                     case 0b11001101:
                         imm16 := cpu.LoadMemory16(cpu.PC+1)
