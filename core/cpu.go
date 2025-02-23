@@ -1425,8 +1425,10 @@ func (cpu *CPU) Execute(instruction Instruction) {
                 carry = 1
             }
 
-            // FIXME: half carry
-            var halfCarry uint8 = 0
+            halfCarry := uint8(0)
+            if ((cpu.SP & 0xf) + (uint16(value) & 0xf)) & 0x10 == 0x10 {
+                halfCarry = 1
+            }
 
             cpu.HL = uint16(int32(cpu.SP) + int32(value))
             cpu.SetFlagC(carry)
@@ -1436,17 +1438,22 @@ func (cpu *CPU) Execute(instruction Instruction) {
 
         case AddSpImmediate8:
             cpu.Cycles += 4
+            cpu.PC += 2
             value := int8(instruction.Immediate8)
 
+            low := int8(cpu.SP & 0xff)
+
             carry := uint8(0)
-            if int32(cpu.SP) + int32(value) > 0xffff {
+            if (cpu.SP & 0xff) + (uint16(value) & 0xff) > 0xff {
                 carry = 1
             }
+            halfCarry := uint8(0)
+            if ((uint8(low) & 0xf) + (uint8(value) & 0xf)) > 0xf {
+                halfCarry = 1
+            }
 
-            // FIXME: half carry
-            var halfCarry uint8 = 0
-
-            cpu.SP = uint16(int32(cpu.SP) + int32(value))
+            low += value
+            cpu.SP = (uint16(cpu.SP) & 0xff00) | uint16(low)
             cpu.SetFlagC(carry)
             cpu.SetFlagH(halfCarry)
             cpu.SetFlagZ(0)
