@@ -11,7 +11,7 @@ type GameboyFile struct {
 
 func (gameboy *GameboyFile) GetTitle() string {
     start := 0x134
-    end := 0x144
+    end := 0x143 + 1
 
     if end > len(gameboy.Data) {
         return ""
@@ -22,7 +22,7 @@ func (gameboy *GameboyFile) GetTitle() string {
 
 func (gameboy *GameboyFile) GetManufacturerCode() []byte {
     start := 0x13F
-    end := 0x143
+    end := 0x142 + 1
 
     if end > len(gameboy.Data) {
         return nil
@@ -44,7 +44,7 @@ func (gameboy *GameboyFile) GetCGBFlag() byte {
 
 func (gameboy *GameboyFile) GetNewLicenseeCode() []byte {
     start := 0x144
-    end := 0x145
+    end := 0x145 + 1
 
     if end > len(gameboy.Data) {
         return nil
@@ -122,6 +122,38 @@ func (gameboy *GameboyFile) GetOldLicenseeCode() byte {
     }
 
     return gameboy.Data[offset]
+}
+
+func (gameboy *GameboyFile) GetMaskROMVersionNumber() byte {
+    offset := 0x14c
+    if offset >= len(gameboy.Data) {
+        return 0
+    }
+
+    return gameboy.Data[offset]
+}
+
+func (gameboy *GameboyFile) GetHeaderChecksum() byte {
+    offset := 0x14d
+    if offset >= len(gameboy.Data) {
+        return 0
+    }
+
+    return gameboy.Data[offset]
+}
+
+func (gameboy *GameboyFile) GetGlobalChecksum() uint16 {
+    start := 0x14e
+    end := 0x14f
+
+    if end > len(gameboy.Data) {
+        return 0
+    }
+
+    high := uint16(gameboy.Data[start])
+    low := uint16(gameboy.Data[end])
+
+    return (high << 8) | low
 }
 
 func LoadGameboy(reader io.Reader) (*GameboyFile, error) {
