@@ -21,4 +21,17 @@ func main(){
     }
 
     log.Printf("Loaded %d bytes", len(gameboyFile.Data))
+
+    log.Printf("Gameboy file '%v'", gameboyFile.GetTitle())
+    log.Printf("Rom size: %v", gameboyFile.GetRomSize())
+
+    cpu := core.MakeCPU(gameboyFile.GetRom())
+    cpu.PC = 0x100
+
+    for range 50 {
+        log.Printf("PC: 0x%x", cpu.PC)
+        next, _ := cpu.DecodeInstruction()
+        log.Printf("Execute instruction: %+v", next)
+        cpu.Execute(next)
+    }
 }

@@ -9,6 +9,10 @@ type GameboyFile struct {
     Data []byte
 }
 
+func (gameboy *GameboyFile) GetRom() []uint8 {
+    return gameboy.Data
+}
+
 func (gameboy *GameboyFile) GetTitle() string {
     start := 0x134
     end := 0x143 + 1
@@ -74,7 +78,7 @@ func (gameboy *GameboyFile) GetCartridgeType() byte {
 }
 
 // returns rom size in bytes
-func (gameboy *GameboyFile) GetROMSize() uint64 {
+func (gameboy *GameboyFile) GetRomSize() uint64 {
     offset := 0x148
     if offset >= len(gameboy.Data) {
         return 0
@@ -82,7 +86,7 @@ func (gameboy *GameboyFile) GetROMSize() uint64 {
 
     value := gameboy.Data[offset]
 
-    return 32 << value
+    return (32 * 1024) << value
 }
 
 // returns ram size in bytes

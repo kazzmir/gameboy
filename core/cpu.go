@@ -23,7 +23,17 @@ type CPU struct {
     Stopped bool
     Halted bool
 
+    Rom []uint8
     Ram []uint8
+    VRam []uint8
+}
+
+func MakeCPU(rom []uint8) *CPU {
+    return &CPU{
+        Rom: rom,
+        Ram: make([]uint8, 0x2000),
+        VRam: make([]uint8, 0x2000),
+    }
 }
 
 type Opcode int
@@ -435,12 +445,45 @@ func RotateLeft(value uint8) (uint8, uint8) {
     return value, carry
 }
 
+const VRamStart = 0x8000
+const VRamEnd = 0xa000
+const WRamStart = 0xc000
+const WRamEnd = 0xe000
+
 func (cpu *CPU) StoreMemory(address uint16, value uint8) {
-    cpu.Ram[address] = value
+    switch {
+        case address < 0x8000:
+            log.Printf("Attempted to write to ROM at address %v", address)
+        case address >= VRamStart && address < VRamEnd:
+            cpu.VRam[address - VRamStart] = value
+        case address >= WRamStart && address < WRamEnd:
+            cpu.Ram[address - WRamStart] = value
+        default:
+            log.Printf("Warning: unhandled memory write at address 0x%x", address)
+    }
 }
 
+// 0-4000: rom
+// 4000-8000: bank N rom
+// 8000-a000: vram
+// a000-c000: external ram
+// c000-d000: work ram
+// d000-e000: work ram (switchable in cgb mode)
+// e000-fe00: mirror of c000-de00
+// fe00-fea0: oam
+// fea0-ff00: not usable
+// ff00-ff80: io registers
+// ff80-ffff: high ram
+// ffff: interrupt enable register
 func (cpu *CPU) LoadMemory8(address uint16) uint8 {
-    return cpu.Ram[address]
+    switch {
+        case address < 0x8000: return cpu.Rom[address]
+        case address >= VRamStart && address < VRamEnd: return cpu.VRam[address - VRamStart]
+    }
+
+    log.Printf("Warning: unhandled memory read at address 0x%x", address)
+
+    return 0
 }
 
 func (cpu *CPU) LoadMemory16(address uint16) uint16 {
