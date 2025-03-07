@@ -23,6 +23,10 @@ type CPU struct {
     InterruptBits uint8
     InterruptEnable uint8
 
+    TimerModulo uint8
+    TimerEnable bool
+    TimerClockSelect uint8
+
     Stopped bool
     Halted bool
 
@@ -463,6 +467,12 @@ const IOViewPortY = 0xff42
 const IOViewPortX = 0xff43
 const IOWindowY = 0xff4a
 const IOWindowX = 0xff4b
+const IOTimerModulo = 0xff06
+const IOTimerControl = 0xff07
+const IOPalette = 0xff47
+const IOObjPalette0 = 0xff48
+const IOObjPalette1 = 0xff49
+const IOLCDControl = 0xff40
 
 func (cpu *CPU) StoreMemory(address uint16, value uint8) {
     switch {
@@ -488,6 +498,21 @@ func (cpu *CPU) StoreMemory(address uint16, value uint8) {
             cpu.PPU.WindowY = value
         case address == IOWindowX:
             cpu.PPU.WindowX = value
+        case address == IOTimerModulo:
+            cpu.TimerModulo = value
+        case address == IOTimerControl:
+            enable := (value & 0b100) > 0
+            clockSelect := value & 0b11
+            cpu.TimerEnable = enable
+            cpu.TimerClockSelect = clockSelect
+        case address == IOPalette:
+            cpu.PPU.Palette = value
+        case address == IOObjPalette0:
+            cpu.PPU.ObjPalette0 = value
+        case address == IOObjPalette1:
+            cpu.PPU.ObjPalette1 = value
+        case address == IOLCDControl:
+            cpu.PPU.LCDControl = value
         default:
             log.Printf("Warning: unhandled memory write at address 0x%x", address)
     }
