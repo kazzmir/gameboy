@@ -455,10 +455,14 @@ const VRamStart = 0x8000
 const VRamEnd = 0xa000
 const WRamStart = 0xc000
 const WRamEnd = 0xe000
+const IOSerialTransferData = 0xff01
+const IOSerialTransferControl = 0xff02
 const IOInterrupt = 0xff0f
 const IOInterruptEnable = 0xffff
 const IOViewPortY = 0xff42
 const IOViewPortX = 0xff43
+const IOWindowY = 0xff4a
+const IOWindowX = 0xff4b
 
 func (cpu *CPU) StoreMemory(address uint16, value uint8) {
     switch {
@@ -476,6 +480,14 @@ func (cpu *CPU) StoreMemory(address uint16, value uint8) {
             cpu.PPU.ViewPortY = value
         case address == IOViewPortX:
             cpu.PPU.ViewPortX = value
+        case address == IOSerialTransferData:
+            // ignore for now
+        case address == IOSerialTransferControl:
+            // ignore
+        case address == IOWindowY:
+            cpu.PPU.WindowY = value
+        case address == IOWindowX:
+            cpu.PPU.WindowX = value
         default:
             log.Printf("Warning: unhandled memory write at address 0x%x", address)
     }
