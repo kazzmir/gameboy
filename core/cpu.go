@@ -19,6 +19,9 @@ type CPU struct {
     Cycles uint64
 
     InterruptFlag bool // IME
+    // 0: vblank, 1: lcd, 2: timer, 3: serial, 4: joypad
+    InterruptBits uint8
+    InterruptEnable uint8
 
     Stopped bool
     Halted bool
@@ -26,6 +29,8 @@ type CPU struct {
     Rom []uint8
     Ram []uint8
     VRam []uint8
+
+    PPU *PPU
 }
 
 func MakeCPU(rom []uint8) *CPU {
@@ -33,6 +38,7 @@ func MakeCPU(rom []uint8) *CPU {
         Rom: rom,
         Ram: make([]uint8, 0x2000),
         VRam: make([]uint8, 0x2000),
+        PPU: MakePPU(),
     }
 }
 
@@ -449,6 +455,10 @@ const VRamStart = 0x8000
 const VRamEnd = 0xa000
 const WRamStart = 0xc000
 const WRamEnd = 0xe000
+const IOInterrupt = 0xff0f
+const IOInterruptEnable = 0xffff
+const IOViewPortY = 0xff42
+const IOViewPortX = 0xff43
 
 func (cpu *CPU) StoreMemory(address uint16, value uint8) {
     switch {
@@ -458,6 +468,14 @@ func (cpu *CPU) StoreMemory(address uint16, value uint8) {
             cpu.VRam[address - VRamStart] = value
         case address >= WRamStart && address < WRamEnd:
             cpu.Ram[address - WRamStart] = value
+        case address == IOInterrupt:
+            cpu.InterruptBits = value
+        case address == IOInterruptEnable:
+            cpu.InterruptEnable = value
+        case address == IOViewPortY:
+            cpu.PPU.ViewPortY = value
+        case address == IOViewPortX:
+            cpu.PPU.ViewPortX = value
         default:
             log.Printf("Warning: unhandled memory write at address 0x%x", address)
     }
