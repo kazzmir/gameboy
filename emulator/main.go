@@ -31,10 +31,11 @@ func main(){
     cpu.InitializeDMG()
     // cpu.PC = 0x100
 
-    for range 50 {
+    for range 100 {
         log.Printf("PC: 0x%x", cpu.PC)
         next, _ := cpu.DecodeInstruction()
         log.Printf("Execute instruction: %+v", next)
-        cpu.Execute(next)
+        cpuCycles := cpu.Execute(next)
+        cpu.PPU.Run(cpuCycles)
     }
 }

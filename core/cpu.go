@@ -594,6 +594,8 @@ func (cpu *CPU) StoreMemory(address uint16, value uint8) {
 // ff80-ffff: high ram
 // ffff: interrupt enable register
 func (cpu *CPU) LoadMemory8(address uint16) uint8 {
+    // log.Printf("Load memory at address 0x%x", address)
+
     switch {
         case address < 0x8000: return cpu.Rom[address]
         case address >= VRamStart && address < VRamEnd: return cpu.VRam[address - VRamStart]
@@ -857,7 +859,9 @@ func (cpu *CPU) doXorA(value uint8) {
     cpu.SetFlagN(false)
 }
 
-func (cpu *CPU) Execute(instruction Instruction) {
+// returns how many cycles the instruction took
+func (cpu *CPU) Execute(instruction Instruction) uint64 {
+    oldCycles := cpu.Cycles
     // log.Printf("Executing instruction: %+v", instruction)
     switch instruction.Opcode {
         case Nop:
@@ -2012,6 +2016,8 @@ func (cpu *CPU) Execute(instruction Instruction) {
         default:
             log.Printf("Execute error: unknown opcode %v", instruction.Opcode)
     }
+
+    return cpu.Cycles - oldCycles
 }
 
 func makeLoadR16Imm16Instruction(r16 R16, immediate uint16) Instruction {

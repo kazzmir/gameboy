@@ -15,3 +15,6 @@ type PPU struct {
 func MakePPU() *PPU {
     return &PPU{}
 }
+
+func (ppu *PPU) Run(cpuCycles uint64) {
+}
