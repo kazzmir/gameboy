@@ -46,6 +46,61 @@ func MakeCPU(rom []uint8) *CPU {
     }
 }
 
+// set values that should exist on startup for a DMG model
+// https://gbdev.io/pandocs/Power_Up_Sequence.html
+func (cpu *CPU) InitializeDMG() {
+    cpu.PC = 0x100
+    cpu.SP = 0xfffe
+    cpu.A = 0x01
+    cpu.F = 0x0
+    cpu.SetFlagZ(true)
+    cpu.BC = (0x00 << 8) | 0x13
+    cpu.DE = (0x00 << 8) | 0xd8
+    cpu.HL = (0x01 << 8) | 0x4d
+
+    // FIXME: replace the addresses with constants
+    cpu.StoreMemory(0xff00, 0xcf)
+    cpu.StoreMemory(IOSerialTransferData, 0x00)
+    cpu.StoreMemory(IOSerialTransferControl, 0x7e)
+    cpu.StoreMemory(0xff04, 0xab)
+    cpu.StoreMemory(0xff05, 0x00)
+    cpu.StoreMemory(IOTimerModulo, 0x00)
+    cpu.StoreMemory(IOTimerControl, 0xf8)
+    cpu.StoreMemory(IOInterrupt, 0xe1)
+    cpu.StoreMemory(0xff10, 0x80)
+    cpu.StoreMemory(0xff11, 0xbf)
+    cpu.StoreMemory(0xff12, 0xf3)
+    cpu.StoreMemory(0xff13, 0xff)
+    cpu.StoreMemory(0xff14, 0xbf)
+    cpu.StoreMemory(0xff16, 0x3f)
+    cpu.StoreMemory(0xff17, 0x00)
+    cpu.StoreMemory(0xff18, 0xff)
+    cpu.StoreMemory(0xff19, 0xbf)
+    cpu.StoreMemory(0xff1a, 0x7f)
+    cpu.StoreMemory(0xff1b, 0xff)
+    cpu.StoreMemory(0xff1c, 0x9f)
+    cpu.StoreMemory(0xff1d, 0xff)
+    cpu.StoreMemory(0xff1e, 0xbf)
+    cpu.StoreMemory(0xff20, 0xff)
+    cpu.StoreMemory(0xff21, 0x00)
+    cpu.StoreMemory(0xff22, 0x00)
+    cpu.StoreMemory(0xff23, 0xbf)
+    cpu.StoreMemory(0xff24, 0x77)
+    cpu.StoreMemory(0xff25, 0xf3)
+    cpu.StoreMemory(0xff26, 0xf1)
+    cpu.StoreMemory(0xff40, 0x91)
+    cpu.StoreMemory(0xff41, 0x85)
+    cpu.StoreMemory(IOViewPortY, 0x00)
+    cpu.StoreMemory(IOViewPortX, 0x00)
+    cpu.StoreMemory(0xff44, 0x00)
+    cpu.StoreMemory(0xff45, 0x00)
+    cpu.StoreMemory(0xff46, 0xff)
+    cpu.StoreMemory(0xff47, 0xfc)
+    cpu.StoreMemory(IOWindowY, 0x00)
+    cpu.StoreMemory(IOWindowX, 0x00)
+    cpu.StoreMemory(IOInterruptEnable, 0x00)
+}
+
 type Opcode int
 const (
     Nop Opcode = iota

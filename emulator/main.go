@@ -8,6 +8,8 @@ import (
 )
 
 func main(){
+    log.SetFlags(log.Ldate | log.Lshortfile | log.Lmicroseconds)
+
     if len(os.Args) != 2 {
         log.Printf("Usage: gameboy /path/to/rom")
         return
@@ -26,7 +28,8 @@ func main(){
     log.Printf("Rom size: %v", gameboyFile.GetRomSize())
 
     cpu := core.MakeCPU(gameboyFile.GetRom())
-    cpu.PC = 0x100
+    cpu.InitializeDMG()
+    // cpu.PC = 0x100
 
     for range 50 {
         log.Printf("PC: 0x%x", cpu.PC)
