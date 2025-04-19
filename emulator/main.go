@@ -31,7 +31,7 @@ func main(){
     cpu.InitializeDMG()
     // cpu.PC = 0x100
 
-    for range 100 {
+    for range 55420 {
         log.Printf("PC: 0x%x", cpu.PC)
         next, _ := cpu.DecodeInstruction()
         log.Printf("Execute instruction: %+v", next)
