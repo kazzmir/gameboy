@@ -9,6 +9,7 @@ type PPU struct {
     ObjPalette0 uint8
     ObjPalette1 uint8
     LCDControl uint8
+    LCDY uint8
 }
 
 func MakePPU() *PPU {

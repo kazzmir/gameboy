@@ -34,6 +34,8 @@ type CPU struct {
     Ram []uint8
     VRam []uint8
 
+    HighRam []uint8
+
     PPU *PPU
 }
 
@@ -42,6 +44,7 @@ func MakeCPU(rom []uint8) *CPU {
         Rom: rom,
         Ram: make([]uint8, 0x2000),
         VRam: make([]uint8, 0x2000),
+        HighRam: make([]uint8, 0xfffe - 0xff80 + 1),
         PPU: MakePPU(),
     }
 }
@@ -522,6 +525,9 @@ const IOViewPortY = 0xff42
 const IOViewPortX = 0xff43
 const IOWindowY = 0xff4a
 const IOWindowX = 0xff4b
+const IOLCDY = 0xff44
+const IOLCDYCompare = 0xff45
+const IOLCDStatus = 0xff41
 const IOTimerModulo = 0xff06
 const IOTimerControl = 0xff07
 const IOPalette = 0xff47
@@ -568,6 +574,8 @@ func (cpu *CPU) StoreMemory(address uint16, value uint8) {
             cpu.PPU.ObjPalette1 = value
         case address == IOLCDControl:
             cpu.PPU.LCDControl = value
+        case address >= 0xff80 && address <= 0xfffe:
+            cpu.HighRam[address - 0xff80] = value
         default:
             log.Printf("Warning: unhandled memory write at address 0x%x", address)
     }
@@ -589,6 +597,12 @@ func (cpu *CPU) LoadMemory8(address uint16) uint8 {
     switch {
         case address < 0x8000: return cpu.Rom[address]
         case address >= VRamStart && address < VRamEnd: return cpu.VRam[address - VRamStart]
+        case address >= 0xff80 && address <= 0xfffe:
+            return cpu.HighRam[address - 0xff80]
+        case address == IOInterruptEnable:
+            return cpu.InterruptBits
+        case address == IOLCDY:
+            return cpu.PPU.LCDY
     }
 
     log.Printf("Warning: unhandled memory read at address 0x%x", address)
