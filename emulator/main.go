@@ -35,7 +35,7 @@ func main(){
         log.Printf("PC: 0x%x", cpu.PC)
         next, _ := cpu.DecodeInstruction()
         log.Printf("Execute instruction: %+v", next)
-        cpuCycles := cpu.Execute(next)
-        cpu.PPU.Run(cpuCycles)
+        cpuCyclesTaken := cpu.Execute(next)
+        cpu.PPU.Run(cpuCyclesTaken * 4)
     }
 }
