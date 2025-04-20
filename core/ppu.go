@@ -15,6 +15,8 @@ type PPU struct {
     LCDControl uint8
     LCDY uint8
 
+    VideoRam []uint8
+
     OAM []uint8
     Sprites []Sprite
     LineSprites []int
@@ -33,6 +35,7 @@ func MakePPU() *PPU {
 
     return &PPU{
         Screen: screen,
+        VideoRam: make([]uint8, 8192),
         OAM: make([]uint8, 160),
         Sprites: make([]Sprite, 40),
         LineSprites: make([]int, 10),
@@ -55,6 +58,22 @@ func (ppu *PPU) ReadSprites() []Sprite {
     }
 
     return ppu.Sprites
+}
+
+func (ppu *PPU) WriteVRam(address uint16, value uint8) {
+    if address < uint16(len(ppu.VideoRam)) {
+        ppu.VideoRam[address] = value
+    } else {
+        log.Printf("PPU: VRAM write out of bounds: %x", address)
+    }
+}
+
+func (ppu *PPU) LoadVRam(address uint16) uint8 {
+    if address < uint16(len(ppu.VideoRam)) {
+        return ppu.VideoRam[address]
+    }
+    log.Printf("PPU: VRAM read out of bounds: %x", address)
+    return 0
 }
 
 // address is assumed to be in the range 0-160, not 0xfe00-0xfea0

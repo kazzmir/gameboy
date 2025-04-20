@@ -35,7 +35,6 @@ type CPU struct {
 
     Rom []uint8
     Ram []uint8
-    VRam []uint8
 
     HighRam []uint8
 
@@ -49,7 +48,6 @@ func MakeCPU(rom []uint8) *CPU {
     return &CPU{
         Rom: rom,
         Ram: make([]uint8, 0x2000),
-        VRam: make([]uint8, 0x2000),
         HighRam: make([]uint8, 0xfffe - 0xff80 + 1),
         PPU: MakePPU(),
     }
@@ -550,7 +548,7 @@ func (cpu *CPU) StoreMemory(address uint16, value uint8) {
                 log.Printf("Attempted to write to ROM at address 0x%x", address)
             }
         case address >= VRamStart && address < VRamEnd:
-            cpu.VRam[address - VRamStart] = value
+            cpu.PPU.WriteVRam(address - VRamStart, value)
         case address >= WRamStart && address < WRamEnd:
             cpu.Ram[address - WRamStart] = value
         case address >= OAMStart && address < OAMEnd:
@@ -612,7 +610,8 @@ func (cpu *CPU) LoadMemory8(address uint16) uint8 {
 
     switch {
         case address < 0x8000: return cpu.Rom[address]
-        case address >= VRamStart && address < VRamEnd: return cpu.VRam[address - VRamStart]
+        case address >= VRamStart && address < VRamEnd:
+            return cpu.PPU.LoadVRam(address - VRamStart)
         case address >= 0xff80 && address <= 0xfffe:
             return cpu.HighRam[address - 0xff80]
         case address == IOInterruptEnable:

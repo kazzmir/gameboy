@@ -38,12 +38,12 @@ func runEmulator(cpu *core.CPU) {
 
             cpuBudget -= int64(cpuCyclesTaken)
         } else {
-            log.Printf("Done with CPU cycles, waiting for next tick")
+            // log.Printf("Done with CPU cycles, waiting for next tick")
             select {
                 case <-ticker.C:
                     cpuBudget += int64(core.CPUSpeed / rate)
             }
-            log.Printf("Execute %v cycles", cpuBudget)
+            // log.Printf("Execute %v cycles", cpuBudget)
         }
 
     }
@@ -72,7 +72,7 @@ func main(){
     cpu := core.MakeCPU(gameboyFile.GetRom())
     cpu.InitializeDMG()
     cpu.Debug = false
-    cpu.Error = false
+    cpu.Error = true
     cpu.PPU.Debug = false
     // cpu.PC = 0x100
 
