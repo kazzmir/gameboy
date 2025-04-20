@@ -29,12 +29,18 @@ func main(){
 
     cpu := core.MakeCPU(gameboyFile.GetRom())
     cpu.InitializeDMG()
+    cpu.Debug = false
+    cpu.PPU.Debug = true
     // cpu.PC = 0x100
 
     for range 55420 {
-        log.Printf("PC: 0x%x", cpu.PC)
+        if cpu.Debug {
+            log.Printf("PC: 0x%x", cpu.PC)
+        }
         next, _ := cpu.DecodeInstruction()
-        log.Printf("Execute instruction: %+v", next)
+        if cpu.Debug {
+            log.Printf("Execute instruction: %+v", next)
+        }
         cpuCyclesTaken := cpu.Execute(next)
         cpu.PPU.Run(cpuCyclesTaken * 4)
     }

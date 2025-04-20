@@ -21,6 +21,8 @@ type PPU struct {
 
     Dot uint16
     Screen [][]uint8
+
+    Debug bool
 }
 
 func MakePPU() *PPU {
@@ -86,6 +88,10 @@ func (ppu *PPU) Run(ppuCycles uint64) {
                     if ppu.LCDY >= ppu.Sprites[index].Y && ppu.LCDY < ppu.Sprites[index].Y+size {
                         ppu.LineSprites = append(ppu.LineSprites, index)
                     }
+                }
+
+                if ppu.Debug {
+                    log.Printf("PPU: Found %d sprites on line %d", len(ppu.LineSprites), ppu.LCDY)
                 }
             }
 

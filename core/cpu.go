@@ -37,6 +37,8 @@ type CPU struct {
     HighRam []uint8
 
     PPU *PPU
+
+    Debug bool
 }
 
 func MakeCPU(rom []uint8) *CPU {
