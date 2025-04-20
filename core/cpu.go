@@ -5,6 +5,9 @@ import (
     "fmt"
 )
 
+// speed in hertz
+const CPUSpeed = 4194304
+
 type CPU struct {
     // accumulator and flags
     A uint8
@@ -39,6 +42,7 @@ type CPU struct {
     PPU *PPU
 
     Debug bool
+    Error bool
 }
 
 func MakeCPU(rom []uint8) *CPU {
@@ -542,7 +546,9 @@ const IOLCDControl = 0xff40
 func (cpu *CPU) StoreMemory(address uint16, value uint8) {
     switch {
         case address < 0x8000:
-            log.Printf("Attempted to write to ROM at address %v", address)
+            if cpu.Error {
+                log.Printf("Attempted to write to ROM at address 0x%x", address)
+            }
         case address >= VRamStart && address < VRamEnd:
             cpu.VRam[address - VRamStart] = value
         case address >= WRamStart && address < WRamEnd:
@@ -583,7 +589,9 @@ func (cpu *CPU) StoreMemory(address uint16, value uint8) {
         case address >= 0xff80 && address <= 0xfffe:
             cpu.HighRam[address - 0xff80] = value
         default:
-            log.Printf("Warning: unhandled memory write at address 0x%x", address)
+            if cpu.Error {
+                log.Printf("Warning: unhandled memory write at address 0x%x", address)
+            }
     }
 }
 
