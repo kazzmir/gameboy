@@ -140,14 +140,11 @@ func (engine *Engine) Draw(screen *ebiten.Image) {
 
     for y := range len(virtualScreen) {
         for x := range len(virtualScreen[y]) {
-            r := (virtualScreen[y][x] >> 24) & 0xff
-            g := (virtualScreen[y][x] >> 16) & 0xff
-            b := (virtualScreen[y][x] >> 8) & 0xff
-            a := (virtualScreen[y][x] >> 0) & 0xff
-            engine.pixels[y*160+x+0] = uint8(r)
-            engine.pixels[y*160+x+1] = uint8(g)
-            engine.pixels[y*160+x+2] = uint8(b)
-            engine.pixels[y*160+x+3] = uint8(a)
+            r, g, b, a := virtualScreen[y][x].RGBA()
+            engine.pixels[y*160*4+x*4+0] = uint8(r >> 8)
+            engine.pixels[y*160*4+x*4+1] = uint8(g >> 8)
+            engine.pixels[y*160*4+x*4+2] = uint8(b >> 8)
+            engine.pixels[y*160*4+x*4+3] = uint8(a >> 8)
         }
     }
 

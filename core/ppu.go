@@ -23,7 +23,7 @@ type PPU struct {
     LineSprites []int
 
     Dot uint16
-    Screen [][]uint32
+    Screen [][]color.RGBA
     // if the cpu should draw then this channel will have something in it
     Draw chan bool
 
@@ -31,9 +31,9 @@ type PPU struct {
 }
 
 func MakePPU() *PPU {
-    screen := make([][]uint32, 144)
+    screen := make([][]color.RGBA, 144)
     for i := range screen {
-        screen[i] = make([]uint32, 160)
+        screen[i] = make([]color.RGBA, 160)
     }
 
     return &PPU{
@@ -94,6 +94,14 @@ func (ppu *PPU) LargeSpriteMode() bool {
     return (ppu.LCDControl & 0x4) != 0
 }
 
+func (ppu *PPU) BackgroundTileMapAddress() uint16 {
+    // bit 3 of LCDControl
+    if (ppu.LCDControl & 0x8) != 0 {
+        return 0x9c00 - 0x8000
+    }
+    return 0x9800 - 0x8000
+}
+
 // returns the value of the bit at position bit
 func bitN(value uint8, bit uint8) uint8 {
     return (value & (1<<bit)) >> bit
@@ -145,6 +153,36 @@ func (ppu *PPU) Run(ppuCycles uint64) {
                         size = 16
                     }
 
+                    {
+                        // get background tile index
+                        tileMap1Address := ppu.BackgroundTileMapAddress()
+
+                        // each tile map is 32x32, where each tile is 8x8 so a total of 256x256 pixels
+                        // to find the pixel value at position x,y we compute the tile index as y/8*32+x/8
+                        tileIndex := ppu.VideoRam[tileMap1Address + uint16(ppu.LCDY/8) * 32 + uint16(x/8)]
+
+                        vramIndex := uint16(tileIndex)*16
+                        lowByte := ppu.VideoRam[vramIndex]
+                        highByte := ppu.VideoRam[vramIndex+1]
+                        bit := uint8(x - (x/8)*8)
+                        paletteColor := bitN(lowByte, bit) | (bitN(highByte, bit) << 1)
+
+                        var pixelColor color.RGBA
+
+                        // FIXME: use real palette
+                        switch paletteColor {
+                            case 0: pixelColor = color.RGBA{255, 255, 255, 255} // white
+                            case 1: pixelColor = color.RGBA{192, 192, 192, 255} // light gray
+                            case 2: pixelColor = color.RGBA{96, 96, 96, 255} // dark gray
+                            case 3: pixelColor = color.RGBA{0, 0, 0, 255} // black
+                        }
+
+                        // r, g, b, a := pixelColor.RGBA()
+                        // convert to RGBA8888
+                        // ppu.Screen[ppu.LCDY][x] = (r << 24) | (g << 16) | (b << 8) | (a << 0)
+                        ppu.Screen[ppu.LCDY][x] = pixelColor
+                    }
+
                     for _, spriteIndex := range ppu.LineSprites {
                         if x >= uint16(ppu.Sprites[spriteIndex].X) && x < uint16(ppu.Sprites[spriteIndex].X+size) {
                             vramIndex := uint16(ppu.Sprites[spriteIndex].TileIndex)*16+uint16(ppu.LCDY-ppu.Sprites[spriteIndex].Y)
@@ -165,9 +203,10 @@ func (ppu *PPU) Run(ppuCycles uint64) {
                                 case 3: pixelColor = color.RGBA{0, 0, 0, 255} // black
                             }
 
-                            r, g, b, a := pixelColor.RGBA()
+                            // r, g, b, a := pixelColor.RGBA()
                             // convert to RGBA8888
-                            ppu.Screen[ppu.LCDY][x] = (r << 24) | (g << 16) | (b << 8) | (a << 0)
+                            // ppu.Screen[ppu.LCDY][x] = (r << 24) | (g << 16) | (b << 8) | (a << 0)
+                            ppu.Screen[ppu.LCDY][x] = pixelColor
 
                             // find pixel and write it into the screen
                         }
@@ -194,7 +233,7 @@ func (ppu *PPU) Run(ppuCycles uint64) {
                 // clear screen, not needed later once every pixel is drawn
                 for y := range len(ppu.Screen) {
                     for x := range len(ppu.Screen[y]) {
-                        ppu.Screen[y][x] = 0
+                        ppu.Screen[y][x] = color.RGBA{A: 0xff}
                     }
                 }
             }

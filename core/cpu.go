@@ -583,6 +583,7 @@ func (cpu *CPU) StoreMemory(address uint16, value uint8) {
         case address == IOObjPalette1:
             cpu.PPU.ObjPalette1 = value
         case address == IOLCDControl:
+            // log.Printf("ppu: Write %v to lcd control", value)
             cpu.PPU.LCDControl = value
         case address >= 0xff80 && address <= 0xfffe:
             cpu.HighRam[address - 0xff80] = value
