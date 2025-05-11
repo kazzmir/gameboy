@@ -30,6 +30,9 @@ func runEmulator(cpu *core.CPU) {
 
     var cpuBudget int64
 
+    fpsTicker := time.NewTicker(time.Second)
+
+    frames := 0
     for {
         if cpuBudget > 0 {
             next, _ := cpu.DecodeInstruction()
@@ -37,6 +40,14 @@ func runEmulator(cpu *core.CPU) {
             cpu.PPU.Run(cpuCyclesTaken * 4)
 
             cpuBudget -= int64(cpuCyclesTaken)
+
+            select {
+                case <-cpu.PPU.Draw:
+                    // log.Printf("Draw screen")
+                    frames += 1
+                default:
+            }
+
         } else {
             // log.Printf("Done with CPU cycles, waiting for next tick")
             select {
@@ -44,6 +55,13 @@ func runEmulator(cpu *core.CPU) {
                     cpuBudget += int64(core.CPUSpeed / rate)
             }
             // log.Printf("Execute %v cycles", cpuBudget)
+        }
+
+        select {
+            case <-fpsTicker.C:
+                log.Printf("FPS: %v", frames)
+                frames = 0
+            default:
         }
 
     }
@@ -72,7 +90,7 @@ func main(){
     cpu := core.MakeCPU(gameboyFile.GetRom())
     cpu.InitializeDMG()
     cpu.Debug = false
-    cpu.Error = true
+    cpu.Error = false
     cpu.PPU.Debug = false
     // cpu.PC = 0x100
 

@@ -2,6 +2,7 @@ package core
 
 import (
     "log"
+    "image/color"
 )
 
 type PPU struct {
@@ -22,15 +23,17 @@ type PPU struct {
     LineSprites []int
 
     Dot uint16
-    Screen [][]uint8
+    Screen [][]uint16
+    // if the cpu should draw then this channel will have something in it
+    Draw chan bool
 
     Debug bool
 }
 
 func MakePPU() *PPU {
-    screen := make([][]uint8, 144)
+    screen := make([][]uint16, 144)
     for i := range screen {
-        screen[i] = make([]uint8, 160)
+        screen[i] = make([]uint16, 160)
     }
 
     return &PPU{
@@ -39,6 +42,7 @@ func MakePPU() *PPU {
         OAM: make([]uint8, 160),
         Sprites: make([]Sprite, 40),
         LineSprites: make([]int, 10),
+        Draw: make(chan bool, 1),
     }
 }
 
@@ -90,6 +94,18 @@ func (ppu *PPU) LargeSpriteMode() bool {
     return (ppu.LCDControl & 0x4) != 0
 }
 
+// returns the value of the bit at position bit
+func bitN(value uint8, bit uint8) uint8 {
+    return (value & (1<<bit)) >> bit
+
+    /*
+    if value&(1<<bit) != 0 {
+        return 1
+    }
+    return 0
+    */
+}
+
 func (ppu *PPU) Run(ppuCycles uint64) {
     for range ppuCycles {
         ppu.Dot += 1
@@ -122,14 +138,39 @@ func (ppu *PPU) Run(ppuCycles uint64) {
             if ppu.Dot < 252 {
                 x := ppu.Dot - 80
 
-                var size uint8 = 8
-                if ppu.LargeSpriteMode() {
-                    size = 16
-                }
+                if x < 160 && ppu.LCDY < 144 {
 
-                for _, spriteIndex := range ppu.LineSprites {
-                    if x >= uint16(ppu.Sprites[spriteIndex].X) && x < uint16(ppu.Sprites[spriteIndex].X+size) {
-                        // find pixel and write it into the screen
+                    var size uint8 = 8
+                    if ppu.LargeSpriteMode() {
+                        size = 16
+                    }
+
+                    for _, spriteIndex := range ppu.LineSprites {
+                        if x >= uint16(ppu.Sprites[spriteIndex].X) && x < uint16(ppu.Sprites[spriteIndex].X+size) {
+                            vramIndex := uint16(ppu.Sprites[spriteIndex].TileIndex)*16+uint16(ppu.LCDY-ppu.Sprites[spriteIndex].Y)
+                            lowByte := ppu.VideoRam[vramIndex]
+                            highByte := ppu.VideoRam[vramIndex+1]
+
+                            // FIXME: what about size 16?
+                            bit := uint8(x - uint16(ppu.Sprites[spriteIndex].X))
+                            paletteColor := bitN(lowByte, bit) | (bitN(highByte, bit) << 1)
+
+                            var pixelColor color.RGBA
+
+                            // FIXME: use real palette
+                            switch paletteColor {
+                                case 0: pixelColor = color.RGBA{255, 255, 255, 255} // white
+                                case 1: pixelColor = color.RGBA{192, 192, 192, 255} // light gray
+                                case 2: pixelColor = color.RGBA{96, 96, 96, 255} // dark gray
+                                case 3: pixelColor = color.RGBA{0, 0, 0, 255} // black
+                            }
+
+                            r, g, b, _ := pixelColor.RGBA()
+                            // convert to RGB565
+                            ppu.Screen[ppu.LCDY][x] = uint16((r>>8) << 11) | uint16((g>>8) << 5) | uint16(b >> 8)
+
+                            // find pixel and write it into the screen
+                        }
                     }
                 }
             }
@@ -140,8 +181,22 @@ func (ppu *PPU) Run(ppuCycles uint64) {
             ppu.Dot = 0
             ppu.LCDY += 1
 
+            if ppu.LCDY == 144 {
+                select {
+                    case ppu.Draw <- true:
+                    default:
+                }
+            }
+
             if ppu.LCDY >= 154 {
                 ppu.LCDY = 0
+
+                // clear screen, not needed later once every pixel is drawn
+                for y := range ppu.Screen {
+                    for x := range ppu.Screen[y] {
+                        ppu.Screen[y][x] = 0
+                    }
+                }
             }
         }
     }
