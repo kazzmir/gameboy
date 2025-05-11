@@ -23,7 +23,7 @@ type PPU struct {
     LineSprites []int
 
     Dot uint16
-    Screen [][]uint16
+    Screen [][]uint32
     // if the cpu should draw then this channel will have something in it
     Draw chan bool
 
@@ -31,9 +31,9 @@ type PPU struct {
 }
 
 func MakePPU() *PPU {
-    screen := make([][]uint16, 144)
+    screen := make([][]uint32, 144)
     for i := range screen {
-        screen[i] = make([]uint16, 160)
+        screen[i] = make([]uint32, 160)
     }
 
     return &PPU{
@@ -165,9 +165,9 @@ func (ppu *PPU) Run(ppuCycles uint64) {
                                 case 3: pixelColor = color.RGBA{0, 0, 0, 255} // black
                             }
 
-                            r, g, b, _ := pixelColor.RGBA()
-                            // convert to RGB565
-                            ppu.Screen[ppu.LCDY][x] = uint16((r>>8) << 11) | uint16((g>>8) << 5) | uint16(b >> 8)
+                            r, g, b, a := pixelColor.RGBA()
+                            // convert to RGBA8888
+                            ppu.Screen[ppu.LCDY][x] = (r << 24) | (g << 16) | (b << 8) | (a << 0)
 
                             // find pixel and write it into the screen
                         }
@@ -192,8 +192,8 @@ func (ppu *PPU) Run(ppuCycles uint64) {
                 ppu.LCDY = 0
 
                 // clear screen, not needed later once every pixel is drawn
-                for y := range ppu.Screen {
-                    for x := range ppu.Screen[y] {
+                for y := range len(ppu.Screen) {
+                    for x := range len(ppu.Screen[y]) {
                         ppu.Screen[y][x] = 0
                     }
                 }
