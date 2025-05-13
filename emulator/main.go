@@ -2,8 +2,10 @@ package main
 
 import (
     "os"
+    "fmt"
     "log"
     "time"
+    "flag"
 
     "github.com/kazzmir/gameboy/core"
 
@@ -18,9 +20,10 @@ type Engine struct {
     rate int64
     pixels []uint8
     needDraw bool
+    maxCycle int64
 }
 
-func MakeEngine(cpu *core.CPU) *Engine {
+func MakeEngine(cpu *core.CPU, maxCycle int64) *Engine {
     rate := int64(60)
     ticker := time.NewTicker(time.Second / time.Duration(rate))
 
@@ -29,10 +32,11 @@ func MakeEngine(cpu *core.CPU) *Engine {
         cpuBudget: 0,
         ticker: ticker,
         rate: rate,
+        maxCycle: maxCycle,
     }
 }
 
-func (engine *Engine) runEmulator() {
+func (engine *Engine) runEmulator() error {
 
     /*
     for range 55420 {
@@ -81,6 +85,13 @@ func (engine *Engine) runEmulator() {
             default:
         }
 
+        if engine.maxCycle > 0 {
+            engine.maxCycle -= int64(cpuCyclesTaken)
+            if engine.maxCycle <= 0 {
+                return fmt.Errorf("Max cycles reached")
+            }
+        }
+
     }
 
     /*
@@ -118,6 +129,8 @@ func (engine *Engine) runEmulator() {
 
     }
     */
+
+    return nil
 }
 
 func (engine *Engine) Update() error {
@@ -128,9 +141,9 @@ func (engine *Engine) Update() error {
         }
     }
 
-    engine.runEmulator()
+    err := engine.runEmulator()
 
-    return nil
+    return err
 }
 
 func (engine *Engine) Draw(screen *ebiten.Image) {
@@ -163,14 +176,20 @@ func (engine *Engine) Layout(outsideWidth, outsideHeight int) (int, int) {
 }
 
 func main(){
+    maxCycle := flag.Int64("max", 0, "Max cycles to run")
+    flag.Parse()
+
     log.SetFlags(log.Ldate | log.Lshortfile | log.Lmicroseconds)
 
-    if len(os.Args) != 2 {
+    var path string
+    for i := flag.NArg(); i < len(os.Args); i++ {
+        path = os.Args[i]
+    }
+
+    if path == "" {
         log.Printf("Usage: gameboy /path/to/rom")
         return
     }
-
-    path := os.Args[1]
 
     gameboyFile, err := core.LoadGameboyFromFile(path)
     if err != nil {
@@ -193,7 +212,7 @@ func main(){
     ebiten.SetWindowTitle("Gameboy Emulator")
     ebiten.SetWindowResizingMode(ebiten.WindowResizingModeEnabled)
 
-    engine := MakeEngine(cpu)
+    engine := MakeEngine(cpu, *maxCycle)
 
     err = ebiten.RunGame(engine)
     if err != nil {
