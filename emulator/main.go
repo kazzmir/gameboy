@@ -15,13 +15,13 @@ type Engine struct {
     Cpu *core.CPU
     cpuBudget int64
     ticker *time.Ticker
-    rate int
+    rate int64
     pixels []uint8
     needDraw bool
 }
 
 func MakeEngine(cpu *core.CPU) *Engine {
-    rate := 60
+    rate := int64(60)
     ticker := time.NewTicker(time.Second / time.Duration(rate))
 
     return &Engine{
@@ -50,6 +50,7 @@ func (engine *Engine) runEmulator() {
 
     // fpsTicker := time.NewTicker(time.Second)
 
+    /*
     readBudget := true
     for readBudget {
         select {
@@ -59,6 +60,11 @@ func (engine *Engine) runEmulator() {
                 readBudget = false
         }
     }
+    */
+
+    engine.cpuBudget += core.CPUSpeed / engine.rate
+
+    // log.Printf("cpu budget: %v = %v/s. cpu speed = %v. diff = %v", engine.cpuBudget, engine.cpuBudget * 60, core.CPUSpeed, engine.cpuBudget * 60 - core.CPUSpeed)
 
     for engine.cpuBudget > 0 {
         next, _ := engine.Cpu.DecodeInstruction()
@@ -178,7 +184,7 @@ func main(){
     cpu := core.MakeCPU(gameboyFile.GetRom())
     cpu.InitializeDMG()
     cpu.Debug = false
-    cpu.Error = false
+    cpu.Error = true
     cpu.PPU.Debug = false
     // cpu.PC = 0x100
 
