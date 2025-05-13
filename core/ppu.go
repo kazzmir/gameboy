@@ -232,11 +232,13 @@ func (ppu *PPU) Run(ppuCycles uint64) {
                 ppu.LCDY = 0
 
                 // clear screen, not needed later once every pixel is drawn
+                /*
                 for y := range len(ppu.Screen) {
                     for x := range len(ppu.Screen[y]) {
                         ppu.Screen[y][x] = color.RGBA{A: 0xff}
                     }
                 }
+                */
             }
         }
     }

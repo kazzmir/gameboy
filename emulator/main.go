@@ -37,35 +37,6 @@ func MakeEngine(cpu *core.CPU, maxCycle int64) *Engine {
 }
 
 func (engine *Engine) runEmulator() error {
-
-    /*
-    for range 55420 {
-        if cpu.Debug {
-            log.Printf("PC: 0x%x", cpu.PC)
-        }
-        next, _ := cpu.DecodeInstruction()
-        if cpu.Debug {
-            log.Printf("Execute instruction: %+v", next)
-        }
-        cpuCyclesTaken := cpu.Execute(next)
-        cpu.PPU.Run(cpuCyclesTaken * 4)
-    }
-    */
-
-    // fpsTicker := time.NewTicker(time.Second)
-
-    /*
-    readBudget := true
-    for readBudget {
-        select {
-            case <-engine.ticker.C:
-                engine.cpuBudget += int64(core.CPUSpeed / engine.rate)
-            default:
-                readBudget = false
-        }
-    }
-    */
-
     engine.cpuBudget += core.CPUSpeed / engine.rate
 
     // log.Printf("cpu budget: %v = %v/s. cpu speed = %v. diff = %v", engine.cpuBudget, engine.cpuBudget * 60, core.CPUSpeed, engine.cpuBudget * 60 - core.CPUSpeed)
@@ -93,42 +64,6 @@ func (engine *Engine) runEmulator() error {
         }
 
     }
-
-    /*
-    frames := 0
-    for {
-        if cpuBudget > 0 {
-            next, _ := cpu.DecodeInstruction()
-            cpuCyclesTaken := cpu.Execute(next)
-            engine.Cpu.PPU.Run(cpuCyclesTaken * 4)
-
-            cpuBudget -= int64(cpuCyclesTaken)
-
-            select {
-                case <-cpu.PPU.Draw:
-                    // log.Printf("Draw screen")
-                    frames += 1
-                default:
-            }
-
-        } else {
-            // log.Printf("Done with CPU cycles, waiting for next tick")
-            select {
-                case <-ticker.C:
-                    cpuBudget += int64(core.CPUSpeed / rate)
-            }
-            // log.Printf("Execute %v cycles", cpuBudget)
-        }
-
-        select {
-            case <-fpsTicker.C:
-                log.Printf("FPS: %v", frames)
-                frames = 0
-            default:
-        }
-
-    }
-    */
 
     return nil
 }
@@ -177,6 +112,7 @@ func (engine *Engine) Layout(outsideWidth, outsideHeight int) (int, int) {
 
 func main(){
     maxCycle := flag.Int64("max", 0, "Max cycles to run")
+    cpuDebug := flag.Bool("cpu-debug", false, "Enable CPU debug")
     flag.Parse()
 
     log.SetFlags(log.Ldate | log.Lshortfile | log.Lmicroseconds)
@@ -194,16 +130,18 @@ func main(){
     gameboyFile, err := core.LoadGameboyFromFile(path)
     if err != nil {
         log.Printf("Error: %v", err)
+        return
     }
 
     log.Printf("Loaded %d bytes", len(gameboyFile.Data))
 
     log.Printf("Gameboy file '%v'", gameboyFile.GetTitle())
     log.Printf("Rom size: %v", gameboyFile.GetRomSize())
+    log.Printf("Cartidge type: %v", gameboyFile.GetCartridgeType())
 
     cpu := core.MakeCPU(gameboyFile.GetRom())
     cpu.InitializeDMG()
-    cpu.Debug = false
+    cpu.Debug = *cpuDebug
     cpu.Error = true
     cpu.PPU.Debug = false
     // cpu.PC = 0x100

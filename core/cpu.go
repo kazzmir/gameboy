@@ -525,10 +525,22 @@ const WRamMirrorStart = 0xe000
 const WRamMirrorEnd = 0xfe00
 const OAMStart = 0xfe00
 const OAMEnd = 0xfea0
+const IOJoypad = 0xff00
 const IOSerialTransferData = 0xff01
 const IOSerialTransferControl = 0xff02
 const IOInterrupt = 0xff0f
 const IOInterruptEnable = 0xffff
+const IOSoundChannel1Sweep = 0xff10
+const IOSoundChannel1Volume = 0xff12
+const IOSoundChannel1PeriodHigh = 0xff14
+const IOSoundChannel2Volume = 0xff17
+const IOSoundChannel2PeriodHigh = 0xff19
+const IOSoundChannel4Volume = 0xff21
+const IOSoundChannel4Control = 0xff23
+const IOSoundChannel3DAC = 0xff1a
+const IOMasterVolume = 0xff24
+const IOSoundPanning = 0xff25
+const IOSoundOnOff = 0xff26
 const IOViewPortY = 0xff42
 const IOViewPortX = 0xff43
 const IOWindowY = 0xff4a
@@ -546,7 +558,10 @@ const IOLCDControl = 0xff40
 func (cpu *CPU) StoreMemory(address uint16, value uint8) {
     switch {
         case address < 0x8000:
-            if cpu.Error {
+            // normally this would be writing to an MBC controller to change the bank
+            if address == 0x2000 {
+                // ignore
+            } else if cpu.Error {
                 log.Printf("Attempted to write to ROM at address 0x%x", address)
             }
         case address >= VRamStart && address < VRamEnd:
@@ -565,6 +580,31 @@ func (cpu *CPU) StoreMemory(address uint16, value uint8) {
             cpu.PPU.ViewPortY = value
         case address == IOViewPortX:
             cpu.PPU.ViewPortX = value
+        case address == IOJoypad:
+            // FIXME
+        case address == IOSoundChannel1Sweep:
+            // FIXME: implement with APU
+        case address == IOSoundChannel1Volume:
+            // FIXME: implement with APU
+        case address == IOSoundChannel1PeriodHigh:
+            // FIXME: implement with APU
+        case address == IOSoundChannel2Volume:
+            // FIXME: implement with APU
+        case address == IOSoundChannel2PeriodHigh:
+            // FIXME: implement with APU
+        case address == IOSoundChannel3DAC:
+            // FIXME: implement with APU
+        case address == IOSoundChannel4Volume:
+            // FIXME: implement with APU
+        case address == IOSoundChannel4Control:
+            // FIXME: implement with APU
+        case address == IOMasterVolume:
+            // FIXME: implement with APU
+        case address == IOSoundPanning:
+            // FIXME: implement with APU
+        case address == IOSoundOnOff:
+            // FIXME: implement with APU
+            // ignore for now
         case address == IOSerialTransferData:
             // ignore for now
         case address == IOSerialTransferControl:
@@ -593,6 +633,10 @@ func (cpu *CPU) StoreMemory(address uint16, value uint8) {
             cpu.PPU.LCDControl = value
         case address >= 0xff80 && address <= 0xfffe:
             cpu.HighRam[address - 0xff80] = value
+        case address >= 0xfea0 && address <= 0xfeff:
+            // ignore
+        case address == 0xff7f:
+            // ignore
         default:
             if cpu.Error {
                 log.Printf("Warning: unhandled memory write at address 0x%x", address)
@@ -629,6 +673,9 @@ func (cpu *CPU) LoadMemory8(address uint16) uint8 {
             return cpu.PPU.LCDControl
         case address == IOInterruptEnable:
             return cpu.InterruptBits
+        case address == IOJoypad:
+            // FIXME
+            return 0
         case address == IOLCDY:
             return cpu.PPU.LCDY
     }
@@ -888,7 +935,9 @@ func (cpu *CPU) doXorA(value uint8) {
 // returns how many cycles the instruction took
 func (cpu *CPU) Execute(instruction Instruction) uint64 {
     oldCycles := cpu.Cycles
-    // log.Printf("Executing instruction: %+v", instruction)
+    if cpu.Debug {
+        log.Printf("cycle=%v pc=0x%x executing instruction: %+v", cpu.Cycles, cpu.PC, instruction)
+    }
     switch instruction.Opcode {
         case Nop:
             cpu.Cycles += 1
