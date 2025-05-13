@@ -619,8 +619,14 @@ func (cpu *CPU) LoadMemory8(address uint16) uint8 {
         case address < 0x8000: return cpu.Rom[address]
         case address >= VRamStart && address < VRamEnd:
             return cpu.PPU.LoadVRam(address - VRamStart)
+        case address >= WRamStart && address < WRamEnd:
+            return cpu.Ram[address - WRamStart]
+        case address >= WRamMirrorStart && address < WRamMirrorEnd:
+            return cpu.Ram[address - WRamMirrorStart]
         case address >= 0xff80 && address <= 0xfffe:
             return cpu.HighRam[address - 0xff80]
+        case address == IOLCDControl:
+            return cpu.PPU.LCDControl
         case address == IOInterruptEnable:
             return cpu.InterruptBits
         case address == IOLCDY:
