@@ -182,7 +182,7 @@ func main(){
     log.SetFlags(log.Ldate | log.Lshortfile | log.Lmicroseconds)
 
     var path string
-    for i := flag.NArg(); i < len(os.Args); i++ {
+    for i := len(os.Args) - flag.NArg(); i < len(os.Args); i++ {
         path = os.Args[i]
     }
 
