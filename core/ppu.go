@@ -13,6 +13,7 @@ type PPU struct {
     Palette uint8
     ObjPalette0 uint8
     ObjPalette1 uint8
+    LCDStatus uint8
     LCDControl uint8
     LCDY uint8
 

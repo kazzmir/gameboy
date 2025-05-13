@@ -521,6 +521,8 @@ const VRamStart = 0x8000
 const VRamEnd = 0xa000
 const WRamStart = 0xc000
 const WRamEnd = 0xe000
+const WRamMirrorStart = 0xe000
+const WRamMirrorEnd = 0xfe00
 const OAMStart = 0xfe00
 const OAMEnd = 0xfea0
 const IOSerialTransferData = 0xff01
@@ -551,6 +553,8 @@ func (cpu *CPU) StoreMemory(address uint16, value uint8) {
             cpu.PPU.WriteVRam(address - VRamStart, value)
         case address >= WRamStart && address < WRamEnd:
             cpu.Ram[address - WRamStart] = value
+        case address >= WRamMirrorStart && address < WRamMirrorEnd:
+            cpu.Ram[address - WRamMirrorStart] = value
         case address >= OAMStart && address < OAMEnd:
             cpu.PPU.WriteOAM(address - OAMStart, value)
         case address == IOInterrupt:
@@ -582,6 +586,8 @@ func (cpu *CPU) StoreMemory(address uint16, value uint8) {
             cpu.PPU.ObjPalette0 = value
         case address == IOObjPalette1:
             cpu.PPU.ObjPalette1 = value
+        case address == IOLCDStatus:
+            cpu.PPU.LCDStatus = (value & 0b111100) | (cpu.PPU.LCDStatus & 0b000011)
         case address == IOLCDControl:
             // log.Printf("ppu: Write %v to lcd control", value)
             cpu.PPU.LCDControl = value
