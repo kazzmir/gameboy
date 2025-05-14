@@ -113,6 +113,7 @@ func (engine *Engine) Layout(outsideWidth, outsideHeight int) (int, int) {
 func main(){
     maxCycle := flag.Int64("max", 0, "Max cycles to run")
     cpuDebug := flag.Bool("cpu-debug", false, "Enable CPU debug")
+    ppuDebug := flag.Bool("ppu-debug", false, "Enable PPU debug")
     flag.Parse()
 
     log.SetFlags(log.Ldate | log.Lshortfile | log.Lmicroseconds)
@@ -143,8 +144,12 @@ func main(){
     cpu.InitializeDMG()
     cpu.Debug = *cpuDebug
     cpu.Error = true
-    cpu.PPU.Debug = false
+    cpu.PPU.Debug = *ppuDebug
     // cpu.PC = 0x100
+
+    if *maxCycle > 0 {
+        log.Printf("Max cycles: %v", *maxCycle)
+    }
 
     ebiten.SetWindowSize(160*4, 144*4)
     ebiten.SetWindowTitle("Gameboy Emulator")
