@@ -26,9 +26,12 @@ type CPU struct {
     InterruptFlag uint8 // IF
     InterruptEnable uint8 // IE
 
+    Timer uint8
+    TimerDivider uint8
     TimerModulo uint8
     TimerEnable bool
     TimerClockSelect uint8
+    TimerRate int64
 
     Stopped bool
     Halted bool
@@ -69,8 +72,8 @@ func (cpu *CPU) InitializeDMG() {
     cpu.StoreMemory(0xff00, 0xcf)
     cpu.StoreMemory(IOSerialTransferData, 0x00)
     cpu.StoreMemory(IOSerialTransferControl, 0x7e)
-    cpu.StoreMemory(0xff04, 0xab)
-    cpu.StoreMemory(0xff05, 0x00)
+    cpu.StoreMemory(IOTimerDivider, 0xab)
+    cpu.StoreMemory(IOTimerCounter, 0x00)
     cpu.StoreMemory(IOTimerModulo, 0x00)
     cpu.StoreMemory(IOTimerControl, 0xf8)
     cpu.StoreMemory(IOInterrupt, 0xe1)
@@ -101,7 +104,7 @@ func (cpu *CPU) InitializeDMG() {
     cpu.StoreMemory(IOViewPortX, 0x00)
     cpu.StoreMemory(IOLCDY, 0x00)
     cpu.StoreMemory(IOLCDYCompare, 0x00)
-    cpu.StoreMemory(0xff46, 0xff)
+    cpu.StoreMemory(IOOAM_DMA_Transfer, 0xff)
     cpu.StoreMemory(0xff47, 0xfc)
     cpu.StoreMemory(IOWindowY, 0x00)
     cpu.StoreMemory(IOWindowX, 0x00)
@@ -548,12 +551,15 @@ const IOWindowX = 0xff4b
 const IOLCDY = 0xff44
 const IOLCDYCompare = 0xff45
 const IOLCDStatus = 0xff41
+const IOTimerDivider = 0xff04
+const IOTimerCounter = 0xff05
 const IOTimerModulo = 0xff06
 const IOTimerControl = 0xff07
 const IOPalette = 0xff47
 const IOObjPalette0 = 0xff48
 const IOObjPalette1 = 0xff49
 const IOLCDControl = 0xff40
+const IOOAM_DMA_Transfer = 0xff46
 
 func (cpu *CPU) StoreMemory(address uint16, value uint8) {
     switch {
@@ -613,6 +619,8 @@ func (cpu *CPU) StoreMemory(address uint16, value uint8) {
             cpu.PPU.WindowY = value
         case address == IOWindowX:
             cpu.PPU.WindowX = value
+        case address == IOTimerDivider:
+            cpu.TimerDivider = 0
         case address == IOTimerModulo:
             cpu.TimerModulo = value
         case address == IOTimerControl:
@@ -675,6 +683,8 @@ func (cpu *CPU) LoadMemory8(address uint16) uint8 {
             return cpu.InterruptEnable
         case address == IOInterrupt:
             return cpu.InterruptFlag
+        case address == IOTimerDivider:
+            return cpu.TimerDivider
         case address == IOJoypad:
             // FIXME
             return 0
@@ -685,6 +695,29 @@ func (cpu *CPU) LoadMemory8(address uint16) uint8 {
     log.Printf("Warning: unhandled memory read at address 0x%x", address)
 
     return 0
+}
+
+func (cpu *CPU) RunTimer(cycles uint64) {
+    cpu.TimerDivider = uint8(uint16(cpu.TimerDivider) + uint16(cycles / 256))
+
+    if cpu.TimerEnable {
+        cpu.TimerRate -= int64(cycles)
+        if cpu.TimerRate <= 0 {
+            switch cpu.TimerClockSelect {
+                case 0: cpu.TimerRate = 1024
+                case 1: cpu.TimerRate = 16
+                case 2: cpu.TimerRate = 64
+                case 3: cpu.TimerRate = 256
+            }
+
+            log.Printf("timer is now %v", cpu.Timer)
+            cpu.Timer += 1
+            if cpu.Timer == 0 {
+                cpu.InterruptFlag |= 0b00000100
+                cpu.Timer = cpu.TimerModulo
+            }
+        }
+    }
 }
 
 func (cpu *CPU) LoadMemory16(address uint16) uint16 {
@@ -2112,7 +2145,7 @@ func (cpu *CPU) HandleInterrupts() uint64 {
 
         type Info struct {
             Bits uint8
-            Vector uint16
+            Vector uint8
         }
 
         infos := []Info{
@@ -2131,7 +2164,7 @@ func (cpu *CPU) HandleInterrupts() uint64 {
                 cpu.InterruptMasterFlag = false
                 // interrupt takes 5 cycles, reset vector itself takes 4
                 log.Printf("Invoke interrupt %v 0x%x", info.Bits, info.Vector)
-                return 1 + cpu.Execute(Instruction{Opcode: CallResetVector, Immediate16: info.Vector})
+                return 1 + cpu.Execute(Instruction{Opcode: CallResetVector, Immediate8: info.Vector})
             }
         }
     }

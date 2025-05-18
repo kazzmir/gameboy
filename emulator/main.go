@@ -15,7 +15,7 @@ import (
 
 type Engine struct {
     Cpu *core.CPU
-    // cpuBudget int64
+    cpuBudget int64
     ticker *time.Ticker
     rate int64
     pixels []uint8
@@ -29,7 +29,7 @@ func MakeEngine(cpu *core.CPU, maxCycle int64) *Engine {
 
     return &Engine{
         Cpu: cpu,
-        // cpuBudget: 0,
+        cpuBudget: 0,
         ticker: ticker,
         rate: rate,
         maxCycle: maxCycle,
@@ -37,19 +37,20 @@ func MakeEngine(cpu *core.CPU, maxCycle int64) *Engine {
 }
 
 // run the emulator for some number of cpu cycles
-func (engine *Engine) runEmulator(cpuBudget int64) error {
+func (engine *Engine) runEmulator(cycles int64) error {
     // engine.cpuBudget += core.CPUSpeed / engine.rate
 
-    // log.Printf("cpu budget: %v = %v/s. cpu speed = %v. diff = %v", engine.cpuBudget, engine.cpuBudget * 60, core.CPUSpeed, engine.cpuBudget * 60 - core.CPUSpeed)
+    engine.cpuBudget += cycles
+    // log.Printf("cpu budget: %v = %v/s. cpu speed = %v. diff = %v", engine.cpuBudget, engine.cpuBudget * engine.rate, core.CPUSpeed, engine.cpuBudget * engine.rate - core.CPUSpeed)
 
-    for cpuBudget > 0 {
+    for engine.cpuBudget > 0 {
         cpuCyclesTaken := engine.Cpu.HandleInterrupts()
 
         next, _ := engine.Cpu.DecodeInstruction()
         cpuCyclesTaken += engine.Cpu.Execute(next)
         engine.Cpu.PPU.Run(cpuCyclesTaken * 4)
 
-        cpuBudget -= int64(cpuCyclesTaken)
+        engine.cpuBudget -= int64(cpuCyclesTaken)
 
         select {
             case <-engine.Cpu.PPU.Draw:
@@ -67,6 +68,7 @@ func (engine *Engine) runEmulator(cpuBudget int64) error {
             }
         }
 
+        engine.Cpu.RunTimer(cpuCyclesTaken)
     }
 
     return nil
