@@ -628,6 +628,14 @@ func (cpu *CPU) StoreMemory(address uint16, value uint8) {
             clockSelect := value & 0b11
             cpu.TimerEnable = enable
             cpu.TimerClockSelect = clockSelect
+        case address == IOOAM_DMA_Transfer:
+            if value <= 0xf1 {
+                source := uint16(value) << 8
+                for oam := range uint16(0xa0) {
+                    cpu.PPU.WriteOAM(oam, cpu.LoadMemory8(source + oam))
+                }
+            }
+
         case address == IOPalette:
             cpu.PPU.Palette = value
         case address == IOObjPalette0:
@@ -971,7 +979,7 @@ func (cpu *CPU) doXorA(value uint8) {
 func (cpu *CPU) Execute(instruction Instruction) uint64 {
     oldCycles := cpu.Cycles
     if cpu.Debug {
-        log.Printf("cycle=%v pc=0x%x executing instruction: %+v", cpu.Cycles, cpu.PC, instruction)
+        log.Printf("cycle=%v pc=0x%x stack=0x%x executing instruction: %+v", cpu.Cycles, cpu.PC, cpu.SP, instruction)
     }
     switch instruction.Opcode {
         case Nop:
@@ -2164,7 +2172,11 @@ func (cpu *CPU) HandleInterrupts() uint64 {
                 cpu.InterruptMasterFlag = false
                 // interrupt takes 5 cycles, reset vector itself takes 4
                 log.Printf("Invoke interrupt %v 0x%x", info.Bits, info.Vector)
-                return 1 + cpu.Execute(Instruction{Opcode: CallResetVector, Immediate8: info.Vector})
+
+                cpu.Push16(cpu.PC)
+                cpu.PC = uint16(info.Vector)
+
+                return 5
             }
         }
     }

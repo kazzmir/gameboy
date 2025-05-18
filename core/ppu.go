@@ -87,6 +87,15 @@ func (ppu *PPU) LoadVRam(address uint16) uint8 {
     return 0
 }
 
+func (ppu *PPU) CopyOAM(data []uint8) {
+    if len(data) > len(ppu.OAM) {
+        log.Printf("PPU: OAM copy out of bounds: %x", len(data))
+        return
+    }
+
+    copy(ppu.OAM, data)
+}
+
 // address is assumed to be in the range 0-160, not 0xfe00-0xfea0
 func (ppu *PPU) WriteOAM(address uint16, value uint8) {
     if address < uint16(len(ppu.OAM)) {
