@@ -2116,11 +2116,11 @@ func (cpu *CPU) HandleInterrupts() uint64 {
         }
 
         infos := []Info{
-            {joypadBits, 0x0040},
-            {serialBits, 0x0048},
+            {joypadBits, 0x0060},
+            {serialBits, 0x0058},
             {timerBits, 0x0050},
-            {lcdBits, 0x0058},
-            {vblankBits, 0x0060},
+            {lcdBits, 0x0048},
+            {vblankBits, 0x0040},
         }
 
         for _, info := range infos {
