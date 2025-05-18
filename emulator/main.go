@@ -15,7 +15,7 @@ import (
 
 type Engine struct {
     Cpu *core.CPU
-    cpuBudget int64
+    // cpuBudget int64
     ticker *time.Ticker
     rate int64
     pixels []uint8
@@ -29,28 +29,32 @@ func MakeEngine(cpu *core.CPU, maxCycle int64) *Engine {
 
     return &Engine{
         Cpu: cpu,
-        cpuBudget: 0,
+        // cpuBudget: 0,
         ticker: ticker,
         rate: rate,
         maxCycle: maxCycle,
     }
 }
 
-func (engine *Engine) runEmulator() error {
-    engine.cpuBudget += core.CPUSpeed / engine.rate
+// run the emulator for some number of cpu cycles
+func (engine *Engine) runEmulator(cpuBudget int64) error {
+    // engine.cpuBudget += core.CPUSpeed / engine.rate
 
     // log.Printf("cpu budget: %v = %v/s. cpu speed = %v. diff = %v", engine.cpuBudget, engine.cpuBudget * 60, core.CPUSpeed, engine.cpuBudget * 60 - core.CPUSpeed)
 
-    for engine.cpuBudget > 0 {
+    for cpuBudget > 0 {
+        cpuCyclesTaken := engine.Cpu.HandleInterrupts()
+
         next, _ := engine.Cpu.DecodeInstruction()
-        cpuCyclesTaken := engine.Cpu.Execute(next)
+        cpuCyclesTaken += engine.Cpu.Execute(next)
         engine.Cpu.PPU.Run(cpuCyclesTaken * 4)
 
-        engine.cpuBudget -= int64(cpuCyclesTaken)
+        cpuBudget -= int64(cpuCyclesTaken)
 
         select {
             case <-engine.Cpu.PPU.Draw:
                 engine.needDraw = true
+                engine.Cpu.EnableVBlank()
                 // log.Printf("Draw screen")
                 // frames += 1
             default:
@@ -76,7 +80,7 @@ func (engine *Engine) Update() error {
         }
     }
 
-    err := engine.runEmulator()
+    err := engine.runEmulator(core.CPUSpeed / engine.rate)
 
     return err
 }
@@ -114,6 +118,7 @@ func main(){
     maxCycle := flag.Int64("max", 0, "Max cycles to run")
     cpuDebug := flag.Bool("cpu-debug", false, "Enable CPU debug")
     ppuDebug := flag.Bool("ppu-debug", false, "Enable PPU debug")
+    fps := flag.Int("fps", 60, "FPS")
     flag.Parse()
 
     log.SetFlags(log.Ldate | log.Lshortfile | log.Lmicroseconds)
@@ -150,6 +155,8 @@ func main(){
     if *maxCycle > 0 {
         log.Printf("Max cycles: %v", *maxCycle)
     }
+
+    ebiten.SetTPS(*fps)
 
     ebiten.SetWindowSize(160*4, 144*4)
     ebiten.SetWindowTitle("Gameboy Emulator")

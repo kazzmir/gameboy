@@ -67,6 +67,12 @@ func (ppu *PPU) ReadSprites() []Sprite {
 
 func (ppu *PPU) WriteVRam(address uint16, value uint8) {
     if address < uint16(len(ppu.VideoRam)) {
+        // if address >= 0x1800 && address <= 0x1fff {
+        /*
+        if address == 0x1800 {
+            log.Printf("vram write 0x%x = 0x%x", address, value)
+        }
+        */
         ppu.VideoRam[address] = value
     } else {
         log.Printf("PPU: VRAM write out of bounds: %x", address)
@@ -160,12 +166,25 @@ func (ppu *PPU) Run(ppuCycles uint64) {
 
                         // each tile map is 32x32, where each tile is 8x8 so a total of 256x256 pixels
                         // to find the pixel value at position x,y we compute the tile index as y/8*32+x/8
-                        tileIndex := ppu.VideoRam[tileMap1Address + uint16(ppu.LCDY/8) * 32 + uint16(x/8)]
+
+                        var backgroundX uint16 = (uint16(ppu.ViewPortX) + x/8) % 256
+                        var backgroundY uint16 = (uint16(ppu.ViewPortY) + uint16(ppu.LCDY)/8) % 256
+
+                        // tileIndex := ppu.VideoRam[tileMap1Address + uint16(ppu.LCDY/8) * 32 + uint16(x/8)]
+                        tileIndex := ppu.VideoRam[tileMap1Address + backgroundY * 32 + backgroundX]
 
                         vramIndex := uint16(tileIndex)*16
+
+                        /*
+                        if ppu.LCDY == 0 {
+                            log.Printf("dot x=%v y=%v, bg x=%v y=%v tile=%v vram=%v", x, ppu.LCDY, backgroundX, backgroundY, tileIndex, vramIndex)
+                        }
+                        */
+
                         lowByte := ppu.VideoRam[vramIndex]
                         highByte := ppu.VideoRam[vramIndex+1]
-                        bit := uint8(x - (x/8)*8)
+                        // bit := uint8(x - (x/8)*8)
+                        bit := uint8(x & 7)
                         paletteColor := bitN(lowByte, bit) | (bitN(highByte, bit) << 1)
 
                         var pixelColor color.RGBA
@@ -185,6 +204,10 @@ func (ppu *PPU) Run(ppuCycles uint64) {
                     }
 
                     for _, spriteIndex := range ppu.LineSprites {
+                        if 2 > 1 {
+                            break
+                        }
+
                         if x >= uint16(ppu.Sprites[spriteIndex].X) && x < uint16(ppu.Sprites[spriteIndex].X+size) {
                             vramIndex := uint16(ppu.Sprites[spriteIndex].TileIndex)*16+uint16(ppu.LCDY-ppu.Sprites[spriteIndex].Y)
                             lowByte := ppu.VideoRam[vramIndex]

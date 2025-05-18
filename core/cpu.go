@@ -21,10 +21,10 @@ type CPU struct {
     PC uint16
     Cycles uint64
 
-    InterruptFlag bool // IME
+    InterruptMasterFlag bool // IME
     // 0: vblank, 1: lcd, 2: timer, 3: serial, 4: joypad
-    InterruptBits uint8
-    InterruptEnable uint8
+    InterruptFlag uint8 // IF
+    InterruptEnable uint8 // IE
 
     TimerModulo uint8
     TimerEnable bool
@@ -573,7 +573,7 @@ func (cpu *CPU) StoreMemory(address uint16, value uint8) {
         case address >= OAMStart && address < OAMEnd:
             cpu.PPU.WriteOAM(address - OAMStart, value)
         case address == IOInterrupt:
-            cpu.InterruptBits = value
+            cpu.InterruptFlag = value
         case address == IOInterruptEnable:
             cpu.InterruptEnable = value
         case address == IOViewPortY:
@@ -672,7 +672,9 @@ func (cpu *CPU) LoadMemory8(address uint16) uint8 {
         case address == IOLCDControl:
             return cpu.PPU.LCDControl
         case address == IOInterruptEnable:
-            return cpu.InterruptBits
+            return cpu.InterruptEnable
+        case address == IOInterrupt:
+            return cpu.InterruptFlag
         case address == IOJoypad:
             // FIXME
             return 0
@@ -1083,7 +1085,7 @@ func (cpu *CPU) Execute(instruction Instruction) uint64 {
         case ReturnFromInterrupt:
             cpu.Cycles += 4
             cpu.PC = cpu.Pop16()
-            cpu.InterruptFlag = true
+            cpu.InterruptMasterFlag = true
 
         case JrNz:
             cpu.doJrCond(int8(instruction.Immediate8), cpu.GetFlagZ() == 0)
@@ -1122,12 +1124,12 @@ func (cpu *CPU) Execute(instruction Instruction) uint64 {
 
         case DisableInterrupts:
             cpu.Cycles += 1
-            cpu.InterruptFlag = false
+            cpu.InterruptMasterFlag = false
             cpu.PC += 1
 
         case EnableInterrupts:
             cpu.Cycles += 1
-            cpu.InterruptFlag = true
+            cpu.InterruptMasterFlag = true
             cpu.PC += 1
 
         case IncBC:
@@ -2093,6 +2095,48 @@ func (cpu *CPU) Execute(instruction Instruction) uint64 {
     }
 
     return cpu.Cycles - oldCycles
+}
+
+func (cpu *CPU) EnableVBlank() {
+    cpu.InterruptFlag |= 0b00001
+}
+
+func (cpu *CPU) HandleInterrupts() uint64 {
+    if cpu.InterruptMasterFlag {
+        // check joypad, serial, timer, lcd, vblank in that order
+        var joypadBits uint8 = 0b10000
+        var serialBits uint8 = 0b01000
+        var timerBits uint8  = 0b00100
+        var lcdBits uint8    = 0b00010
+        var vblankBits uint8 = 0b00001
+
+        type Info struct {
+            Bits uint8
+            Vector uint16
+        }
+
+        infos := []Info{
+            {joypadBits, 0x0040},
+            {serialBits, 0x0048},
+            {timerBits, 0x0050},
+            {lcdBits, 0x0058},
+            {vblankBits, 0x0060},
+        }
+
+        for _, info := range infos {
+            if (cpu.InterruptEnable & info.Bits) == info.Bits && (cpu.InterruptFlag & info.Bits) == info.Bits {
+                // clear IF flag
+                cpu.InterruptFlag &= ^info.Bits
+                // clear IME
+                cpu.InterruptMasterFlag = false
+                // interrupt takes 5 cycles, reset vector itself takes 4
+                log.Printf("Invoke interrupt %v 0x%x", info.Bits, info.Vector)
+                return 1 + cpu.Execute(Instruction{Opcode: CallResetVector, Immediate16: info.Vector})
+            }
+        }
+    }
+
+    return 0
 }
 
 func makeLoadR16Imm16Instruction(r16 R16, immediate uint16) Instruction {
