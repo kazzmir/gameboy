@@ -185,16 +185,24 @@ func (ppu *PPU) Run(ppuCycles uint64) {
                         vramIndex := uint16(tileIndex)*16
 
                         /*
-                        if ppu.LCDY == 0 {
-                            log.Printf("dot x=%v y=%v, bg x=%v y=%v tile=%v vram=%v", x, ppu.LCDY, backgroundX, backgroundY, tileIndex, vramIndex)
+                        if ppu.LCDY == 8 || ppu.LCDY == 9 {
+                            log.Printf("dot x=%v y=%v, bg x=%v y=%v tile=0x%x vram=0x%x", x, ppu.LCDY, backgroundX, backgroundY, tileIndex, vramIndex)
                         }
                         */
 
-                        lowByte := ppu.VideoRam[vramIndex]
-                        highByte := ppu.VideoRam[vramIndex+1]
+                        yValue := uint16(ppu.LCDY) % 8
+
+                        lowByte := ppu.VideoRam[vramIndex + yValue * 2]
+                        highByte := ppu.VideoRam[vramIndex + + yValue * 2 + 1]
                         // bit := uint8(x - (x/8)*8)
-                        bit := uint8(x & 7)
+                        bit := uint8(7 - (x & 7))
                         paletteColor := bitN(lowByte, bit) | (bitN(highByte, bit) << 1)
+
+                        /*
+                        if tileIndex == 0x1d {
+                            log.Printf("x=%v y=%v low=%v high=%v bit=%v palette=%v", x, ppu.LCDY, lowByte, highByte, bit, paletteColor)
+                        }
+                        */
 
                         var pixelColor color.RGBA
 

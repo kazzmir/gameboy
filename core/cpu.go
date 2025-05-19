@@ -571,6 +571,7 @@ func (cpu *CPU) StoreMemory(address uint16, value uint8) {
                 log.Printf("Attempted to write to ROM at address 0x%x", address)
             }
         case address >= VRamStart && address < VRamEnd:
+            // log.Printf("Write to vram 0x%x = 0x%x", address, value)
             cpu.PPU.WriteVRam(address - VRamStart, value)
         case address >= WRamStart && address < WRamEnd:
             cpu.Ram[address - WRamStart] = value
@@ -634,6 +635,10 @@ func (cpu *CPU) StoreMemory(address uint16, value uint8) {
                 for oam := range uint16(0xa0) {
                     cpu.PPU.WriteOAM(oam, cpu.LoadMemory8(source + oam))
                 }
+
+                // the code should be waiting for 160 cycles in a loop at this point
+                // time to do DMA
+                // cpu.Cycles += 160
             }
 
         case address == IOPalette:
