@@ -21,10 +21,10 @@ type Engine struct {
     pixels []uint8
     needDraw bool
     maxCycle int64
+    speed float64
 }
 
-func MakeEngine(cpu *core.CPU, maxCycle int64) *Engine {
-    rate := int64(60)
+func MakeEngine(cpu *core.CPU, maxCycle int64, rate int64, speed float64) *Engine {
     ticker := time.NewTicker(time.Second / time.Duration(rate))
 
     return &Engine{
@@ -33,6 +33,7 @@ func MakeEngine(cpu *core.CPU, maxCycle int64) *Engine {
         ticker: ticker,
         rate: rate,
         maxCycle: maxCycle,
+        speed: speed,
     }
 }
 
@@ -40,7 +41,7 @@ func MakeEngine(cpu *core.CPU, maxCycle int64) *Engine {
 func (engine *Engine) runEmulator(cycles int64) error {
     // engine.cpuBudget += core.CPUSpeed / engine.rate
 
-    engine.cpuBudget += cycles
+    engine.cpuBudget += int64(float64(cycles) * engine.speed)
     // log.Printf("cpu budget: %v = %v/s. cpu speed = %v. diff = %v", engine.cpuBudget, engine.cpuBudget * engine.rate, core.CPUSpeed, engine.cpuBudget * engine.rate - core.CPUSpeed)
 
     for engine.cpuBudget > 0 {
@@ -121,6 +122,7 @@ func main(){
     cpuDebug := flag.Bool("cpu-debug", false, "Enable CPU debug")
     ppuDebug := flag.Bool("ppu-debug", false, "Enable PPU debug")
     fps := flag.Int("fps", 60, "FPS")
+    speed := flag.Float64("speed", 1.0, "Speed multiplier")
     flag.Parse()
 
     log.SetFlags(log.Ldate | log.Lshortfile | log.Lmicroseconds)
@@ -155,7 +157,7 @@ func main(){
     // cpu.PC = 0x100
 
     if *maxCycle > 0 {
-        log.Printf("Max cycles: %v", *maxCycle)
+        log.Printf("Max cycles: %v, %0.3f seconds", *maxCycle, float64(*maxCycle) / (float64(core.CPUSpeed) * (*speed)))
     }
 
     ebiten.SetTPS(*fps)
@@ -164,7 +166,7 @@ func main(){
     ebiten.SetWindowTitle("Gameboy Emulator")
     ebiten.SetWindowResizingMode(ebiten.WindowResizingModeEnabled)
 
-    engine := MakeEngine(cpu, *maxCycle)
+    engine := MakeEngine(cpu, *maxCycle, int64(*fps), *speed)
 
     err = ebiten.RunGame(engine)
     if err != nil {
