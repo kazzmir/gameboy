@@ -8,6 +8,87 @@ import (
 // speed in hertz
 const CPUSpeed = 4194304
 
+type Joypad struct {
+    Up bool
+    Down bool
+    Left bool
+    Right bool
+    A bool
+    B bool
+    Start bool
+    Select bool
+
+    // if true then return buttons, otherwise dpad
+    ReadButtons bool
+    ReadDpad bool
+}
+
+func (joypad *Joypad) Reset() {
+    joypad.Up = false
+    joypad.Down = false
+    joypad.Left = false
+    joypad.Right = false
+    joypad.A = false
+    joypad.B = false
+    joypad.Start = false
+    joypad.Select = false
+}
+
+func (joypad *Joypad) GetDpad() uint8 {
+    var buttons uint8 = 0b1111
+    if joypad.Up {
+        buttons &= 0b1011
+    }
+    if joypad.Down {
+        buttons &= 0b0111
+    }
+    if joypad.Left {
+        buttons &= 0b1101
+    }
+    if joypad.Right {
+        buttons &= 0b1110
+    }
+    return buttons
+}
+
+func (joypad *Joypad) GetButtons() uint8 {
+    // start=3, select=2, b=1, a=0
+    var buttons uint8 = 0b1111
+    if joypad.A {
+        buttons &= 0b1110
+    }
+    if joypad.B {
+        buttons &= 0b1101
+    }
+    if joypad.Start {
+        buttons &= 0b1011
+    }
+    if joypad.Select {
+        buttons &= 0b0111
+    }
+    return buttons
+}
+
+func (joypad *Joypad) GetValue() uint8 {
+    if joypad.ReadButtons {
+        return joypad.GetButtons()
+    }
+
+    if joypad.ReadDpad {
+        return joypad.GetDpad()
+    }
+
+    return 0xf
+}
+
+func (joypad *Joypad) SetButtons(buttons bool) {
+    joypad.ReadButtons = buttons
+}
+
+func (joypad *Joypad) SetDpad(dpad bool) {
+    joypad.ReadDpad = dpad
+}
+
 type CPU struct {
     // accumulator and flags
     A uint8
@@ -20,6 +101,8 @@ type CPU struct {
     // program counter
     PC uint16
     Cycles uint64
+
+    Joypad Joypad
 
     InterruptMasterFlag bool // IME
     // 0: vblank, 1: lcd, 2: timer, 3: serial, 4: joypad
@@ -602,7 +685,14 @@ func (cpu *CPU) StoreMemory(address uint16, value uint8) {
         case address >= IOWaveFormStart && address <= IOWaveFormEnd:
             // FIXME: implement with APU
         case address == IOJoypad:
-            // FIXME
+            buttons := value & 0b100000
+            dpad := value & 0b10000
+            if buttons != 0 {
+                cpu.Joypad.SetButtons(true)
+            }
+            if dpad != 0 {
+                cpu.Joypad.SetDpad(true)
+            }
         case address == IOSoundChannel1Sweep:
             // FIXME: implement with APU
         case address == IOSoundChannel1Volume:
@@ -733,8 +823,7 @@ func (cpu *CPU) LoadMemory8(address uint16) uint8 {
         case address == IOTimerDivider:
             return cpu.TimerDivider
         case address == IOJoypad:
-            // all keys unpressed
-            return 0b1111
+            return cpu.Joypad.GetValue()
         case address == IOLCDY:
             return cpu.PPU.LCDY
     }
@@ -2179,6 +2268,10 @@ func (cpu *CPU) Execute(instruction Instruction) uint64 {
 
 func (cpu *CPU) EnableVBlank() {
     cpu.InterruptFlag |= 0b00001
+}
+
+func (cpu *CPU) EnableJoypad() {
+    cpu.InterruptFlag |= 0b10000
 }
 
 func (cpu *CPU) HandleInterrupts() uint64 {

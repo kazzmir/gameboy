@@ -44,6 +44,44 @@ func (engine *Engine) runEmulator(cycles int64) error {
     engine.cpuBudget += int64(float64(cycles) * engine.speed)
     // log.Printf("cpu budget: %v = %v/s. cpu speed = %v. diff = %v", engine.cpuBudget, engine.cpuBudget * engine.rate, core.CPUSpeed, engine.cpuBudget * engine.rate - core.CPUSpeed)
 
+    engine.Cpu.Joypad.Reset()
+
+    pressedKeys := inpututil.AppendJustPressedKeys(nil)
+    for _, key := range pressedKeys {
+        switch key {
+            case ebiten.KeyA, ebiten.KeyS, ebiten.KeyEnter, ebiten.KeySpace:
+                if engine.Cpu.Joypad.ReadButtons {
+                    engine.Cpu.EnableJoypad()
+                }
+            case ebiten.KeyUp, ebiten.KeyDown, ebiten.KeyLeft, ebiten.KeyRight:
+                if engine.Cpu.Joypad.ReadDpad {
+                    engine.Cpu.EnableJoypad()
+                }
+        }
+    }
+
+    pressedKeys = inpututil.AppendPressedKeys(nil)
+    for _, key := range pressedKeys {
+        switch key {
+            case ebiten.KeyA:
+                engine.Cpu.Joypad.A = true
+            case ebiten.KeyS:
+                engine.Cpu.Joypad.B = true
+            case ebiten.KeyEnter:
+                engine.Cpu.Joypad.Start = true
+            case ebiten.KeySpace:
+                engine.Cpu.Joypad.Select = true
+            case ebiten.KeyUp:
+                engine.Cpu.Joypad.Up = true
+            case ebiten.KeyDown:
+                engine.Cpu.Joypad.Down = true
+            case ebiten.KeyLeft:
+                engine.Cpu.Joypad.Left = true
+            case ebiten.KeyRight:
+                engine.Cpu.Joypad.Right = true
+        }
+    }
+
     for engine.cpuBudget > 0 {
         cpuCyclesTaken := engine.Cpu.HandleInterrupts()
 
