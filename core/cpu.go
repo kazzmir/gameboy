@@ -771,7 +771,7 @@ func (cpu *CPU) StoreMemory(address uint16, value uint8) {
             cpu.PPU.ObjPalette1 = value
         case address == IOLCDStatus:
             cpu.PPU.LCDStatus = (value & 0b111100) | (cpu.PPU.LCDStatus & 0b000011)
-            log.Printf("LCD status is now %08b", cpu.PPU.LCDStatus)
+            // log.Printf("LCD status is now %08b", cpu.PPU.LCDStatus)
         case address == IOLCDControl:
             // log.Printf("ppu: Write %v to lcd control", value)
             cpu.PPU.LCDControl = value

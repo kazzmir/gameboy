@@ -57,11 +57,12 @@ type Sprite struct {
 
 func (ppu *PPU) ReadSprites() []Sprite {
     for index := range len(ppu.Sprites) {
-        ppu.Sprites[index].X = ppu.OAM[index*4]
-        ppu.Sprites[index].Y = ppu.OAM[index*4+1]
+        ppu.Sprites[index].Y = ppu.OAM[index*4]
+        ppu.Sprites[index].X = ppu.OAM[index*4+1]
         ppu.Sprites[index].TileIndex = ppu.OAM[index*4+2]
         ppu.Sprites[index].Attributes = ppu.OAM[index*4+3]
     }
+    // log.Printf("Sprites: %v", ppu.Sprites)
 
     return ppu.Sprites
 }
@@ -100,6 +101,7 @@ func (ppu *PPU) CopyOAM(data []uint8) {
 // address is assumed to be in the range 0-160, not 0xfe00-0xfea0
 func (ppu *PPU) WriteOAM(address uint16, value uint8) {
     if address < uint16(len(ppu.OAM)) {
+        // log.Printf("Write oam 0x%x = 0x%x", address, value)
         ppu.OAM[address] = value
     } else {
         log.Printf("PPU: OAM write out of bounds: %x", address)
@@ -172,13 +174,18 @@ func (ppu *PPU) Run(ppuCycles uint64, system System) {
                 }
 
                 ppu.LineSprites = ppu.LineSprites[:0]
-                for index := range ppu.Sprites {
-                    if ppu.LCDY >= ppu.Sprites[index].Y && ppu.LCDY < ppu.Sprites[index].Y+size {
+
+                sprites := ppu.ReadSprites()
+
+                for index := range len(sprites) {
+                    spriteY := int(sprites[index].Y) - 16
+
+                    if int(ppu.LCDY) >= spriteY && int(ppu.LCDY) < spriteY+int(size) {
                         ppu.LineSprites = append(ppu.LineSprites, index)
                     }
                 }
 
-                if ppu.Debug {
+                if ppu.Debug && len(ppu.LineSprites) > 0 {
                     log.Printf("PPU: Found %d sprites on line %d", len(ppu.LineSprites), ppu.LCDY)
                 }
             }
@@ -251,14 +258,13 @@ func (ppu *PPU) Run(ppuCycles uint64, system System) {
                     }
 
                     for _, spriteIndex := range ppu.LineSprites {
-                        if 2 < 1 {
-                            break
-                        }
+                        sprite := &ppu.Sprites[spriteIndex]
+                        spriteX := int(sprite.X) - 8
+                        // spriteY := int(sprite.Y) - 16
 
-                        if x >= uint16(ppu.Sprites[spriteIndex].X) && x < uint16(ppu.Sprites[spriteIndex].X+size) {
-                            vramIndex := uint16(ppu.Sprites[spriteIndex].TileIndex)*16+uint16(ppu.LCDY-ppu.Sprites[spriteIndex].Y)
-                            // lowByte := ppu.VideoRam[vramIndex]
-                            // highByte := ppu.VideoRam[vramIndex+1]
+                        if int(x) >= spriteX && int(x) < spriteX+int(size) {
+                            // FIXME: handle size
+                            vramIndex := uint16(sprite.TileIndex)*16
 
                             yValue := uint16(ppu.LCDY) % 8
 
@@ -267,7 +273,7 @@ func (ppu *PPU) Run(ppuCycles uint64, system System) {
                             // bit := uint8(7 - (x & 7))
 
                             // FIXME: what about size 16?
-                            bit := uint8(7 - (x - uint16(ppu.Sprites[spriteIndex].X)))
+                            bit := uint8(7 - (int(x) - spriteX))
                             paletteColor := bitN(lowByte, bit) | (bitN(highByte, bit) << 1)
 
                             var pixelColor color.RGBA
