@@ -110,7 +110,7 @@ type CPU struct {
     InterruptEnable uint8 // IE
 
     Timer uint8
-    TimerDivider uint8
+    TimerDivider uint16
     TimerModulo uint8
     TimerEnable bool
     TimerClockSelect uint8
@@ -822,7 +822,8 @@ func (cpu *CPU) LoadMemory8(address uint16) uint8 {
         case address == IOInterrupt:
             return cpu.InterruptFlag
         case address == IOTimerDivider:
-            return cpu.TimerDivider
+            // log.Printf("read io timer divider: 0x%x", cpu.TimerDivider)
+            return uint8(cpu.TimerDivider / 256)
         case address == IOJoypad:
             return cpu.Joypad.GetValue()
         case address == IOLCDY:
@@ -835,7 +836,7 @@ func (cpu *CPU) LoadMemory8(address uint16) uint8 {
 }
 
 func (cpu *CPU) RunTimer(cycles uint64) {
-    cpu.TimerDivider = uint8(uint16(cpu.TimerDivider) + uint16(cycles / 256))
+    cpu.TimerDivider += uint16(cycles)
 
     if cpu.TimerEnable {
         cpu.TimerRate -= int64(cycles)
