@@ -69,7 +69,7 @@ func (cpu *CPU) InitializeDMG() {
     cpu.HL = (0x01 << 8) | 0x4d
 
     // FIXME: replace the addresses with constants
-    cpu.StoreMemory(0xff00, 0xcf)
+    cpu.StoreMemory(IOJoypad, 0xcf)
     cpu.StoreMemory(IOSerialTransferData, 0x00)
     cpu.StoreMemory(IOSerialTransferControl, 0x7e)
     cpu.StoreMemory(IOTimerDivider, 0xab)
@@ -699,8 +699,8 @@ func (cpu *CPU) LoadMemory8(address uint16) uint8 {
         case address == IOTimerDivider:
             return cpu.TimerDivider
         case address == IOJoypad:
-            // FIXME
-            return 0
+            // all keys unpressed
+            return 0b1111
         case address == IOLCDY:
             return cpu.PPU.LCDY
     }

@@ -193,8 +193,7 @@ func (ppu *PPU) Run(ppuCycles uint64) {
                         yValue := uint16(ppu.LCDY) % 8
 
                         lowByte := ppu.VideoRam[vramIndex + yValue * 2]
-                        highByte := ppu.VideoRam[vramIndex + + yValue * 2 + 1]
-                        // bit := uint8(x - (x/8)*8)
+                        highByte := ppu.VideoRam[vramIndex + yValue * 2 + 1]
                         bit := uint8(7 - (x & 7))
                         paletteColor := bitN(lowByte, bit) | (bitN(highByte, bit) << 1)
 
@@ -221,17 +220,23 @@ func (ppu *PPU) Run(ppuCycles uint64) {
                     }
 
                     for _, spriteIndex := range ppu.LineSprites {
-                        if 2 > 1 {
+                        if 2 < 1 {
                             break
                         }
 
                         if x >= uint16(ppu.Sprites[spriteIndex].X) && x < uint16(ppu.Sprites[spriteIndex].X+size) {
                             vramIndex := uint16(ppu.Sprites[spriteIndex].TileIndex)*16+uint16(ppu.LCDY-ppu.Sprites[spriteIndex].Y)
-                            lowByte := ppu.VideoRam[vramIndex]
-                            highByte := ppu.VideoRam[vramIndex+1]
+                            // lowByte := ppu.VideoRam[vramIndex]
+                            // highByte := ppu.VideoRam[vramIndex+1]
+
+                            yValue := uint16(ppu.LCDY) % 8
+
+                            lowByte := ppu.VideoRam[vramIndex + yValue * 2]
+                            highByte := ppu.VideoRam[vramIndex + yValue * 2 + 1]
+                            // bit := uint8(7 - (x & 7))
 
                             // FIXME: what about size 16?
-                            bit := uint8(x - uint16(ppu.Sprites[spriteIndex].X))
+                            bit := uint8(7 - (x - uint16(ppu.Sprites[spriteIndex].X)))
                             paletteColor := bitN(lowByte, bit) | (bitN(highByte, bit) << 1)
 
                             var pixelColor color.RGBA
