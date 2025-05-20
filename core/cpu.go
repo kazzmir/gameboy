@@ -546,12 +546,16 @@ const IOSoundChannel3Length = 0xff1b
 const IOSoundChannel3Volume = 0xff1c
 const IOSoundChannel3PeriodLow = 0xff1d
 const IOSoundChannel3PeriodHigh = 0xff1e
+const IOSoundChannel4Length = 0xff20
 const IOSoundChannel4Volume = 0xff21
+const IOSoundChannel4Frequency = 0xff22
 const IOSoundChannel4Control = 0xff23
 const IOSoundChannel3DAC = 0xff1a
 const IOMasterVolume = 0xff24
 const IOSoundPanning = 0xff25
 const IOSoundOnOff = 0xff26
+const IOWaveFormStart = 0xff30
+const IOWaveFormEnd = 0xff3f
 const IOViewPortY = 0xff42
 const IOViewPortX = 0xff43
 const IOWindowY = 0xff4a
@@ -595,6 +599,8 @@ func (cpu *CPU) StoreMemory(address uint16, value uint8) {
             cpu.PPU.ViewPortY = value
         case address == IOViewPortX:
             cpu.PPU.ViewPortX = value
+        case address >= IOWaveFormStart && address <= IOWaveFormEnd:
+            // FIXME: implement with APU
         case address == IOJoypad:
             // FIXME
         case address == IOSoundChannel1Sweep:
@@ -628,6 +634,10 @@ func (cpu *CPU) StoreMemory(address uint16, value uint8) {
         case address == IOSoundChannel4Volume:
             // FIXME: implement with APU
         case address == IOSoundChannel4Control:
+            // FIXME: implement with APU
+        case address == IOSoundChannel4Length:
+            // FIXME: implement with APU
+        case address == IOSoundChannel4Frequency:
             // FIXME: implement with APU
         case address == IOMasterVolume:
             // FIXME: implement with APU
@@ -2200,7 +2210,7 @@ func (cpu *CPU) HandleInterrupts() uint64 {
                 // clear IME
                 cpu.InterruptMasterFlag = false
                 // interrupt takes 5 cycles, reset vector itself takes 4
-                log.Printf("Invoke interrupt %v 0x%x", info.Bits, info.Vector)
+                // log.Printf("Invoke interrupt %v 0x%x", info.Bits, info.Vector)
 
                 cpu.Push16(cpu.PC)
                 cpu.PC = uint16(info.Vector)
