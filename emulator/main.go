@@ -87,7 +87,7 @@ func (engine *Engine) runEmulator(cycles int64) error {
 
         next, _ := engine.Cpu.DecodeInstruction()
         cpuCyclesTaken += engine.Cpu.Execute(next)
-        engine.Cpu.PPU.Run(cpuCyclesTaken * 4)
+        engine.Cpu.PPU.Run(cpuCyclesTaken * 4, engine.Cpu)
 
         engine.cpuBudget -= int64(cpuCyclesTaken)
 

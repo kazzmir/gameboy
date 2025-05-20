@@ -61,10 +61,10 @@ func (joypad *Joypad) GetButtons() uint8 {
         buttons &= 0b1101
     }
     if joypad.Start {
-        buttons &= 0b1011
+        buttons &= 0b0111
     }
     if joypad.Select {
-        buttons &= 0b0111
+        buttons &= 0b1011
     }
     return buttons
 }
@@ -687,12 +687,8 @@ func (cpu *CPU) StoreMemory(address uint16, value uint8) {
         case address == IOJoypad:
             buttons := value & 0b100000
             dpad := value & 0b10000
-            if buttons != 0 {
-                cpu.Joypad.SetButtons(true)
-            }
-            if dpad != 0 {
-                cpu.Joypad.SetDpad(true)
-            }
+            cpu.Joypad.SetButtons(buttons == 0)
+            cpu.Joypad.SetDpad(dpad == 0)
         case address == IOSoundChannel1Sweep:
             // FIXME: implement with APU
         case address == IOSoundChannel1Volume:
@@ -744,6 +740,8 @@ func (cpu *CPU) StoreMemory(address uint16, value uint8) {
             cpu.PPU.WindowY = value
         case address == IOWindowX:
             cpu.PPU.WindowX = value
+        case address == IOLCDYCompare:
+            cpu.PPU.LCDYCompare = value
         case address == IOTimerDivider:
             cpu.TimerDivider = 0
         case address == IOTimerModulo:
@@ -773,6 +771,7 @@ func (cpu *CPU) StoreMemory(address uint16, value uint8) {
             cpu.PPU.ObjPalette1 = value
         case address == IOLCDStatus:
             cpu.PPU.LCDStatus = (value & 0b111100) | (cpu.PPU.LCDStatus & 0b000011)
+            log.Printf("LCD status is now %08b", cpu.PPU.LCDStatus)
         case address == IOLCDControl:
             // log.Printf("ppu: Write %v to lcd control", value)
             cpu.PPU.LCDControl = value
@@ -816,6 +815,8 @@ func (cpu *CPU) LoadMemory8(address uint16) uint8 {
             return cpu.HighRam[address - 0xff80]
         case address == IOLCDControl:
             return cpu.PPU.LCDControl
+        case address == IOLCDStatus:
+            return cpu.PPU.LCDStatus
         case address == IOInterruptEnable:
             return cpu.InterruptEnable
         case address == IOInterrupt:
@@ -2274,6 +2275,10 @@ func (cpu *CPU) EnableJoypad() {
     cpu.InterruptFlag |= 0b10000
 }
 
+func (cpu *CPU) EnableStatInterrupt() {
+    cpu.InterruptFlag |= 0b00010
+}
+
 func (cpu *CPU) HandleInterrupts() uint64 {
     if cpu.InterruptMasterFlag {
         // check joypad, serial, timer, lcd, vblank in that order
@@ -2303,7 +2308,11 @@ func (cpu *CPU) HandleInterrupts() uint64 {
                 // clear IME
                 cpu.InterruptMasterFlag = false
                 // interrupt takes 5 cycles, reset vector itself takes 4
-                // log.Printf("Invoke interrupt %v 0x%x", info.Bits, info.Vector)
+                /*
+                if info.Bits == joypadBits {
+                    log.Printf("Invoke interrupt %v 0x%x", info.Bits, info.Vector)
+                }
+                */
 
                 cpu.Push16(cpu.PC)
                 cpu.PC = uint16(info.Vector)

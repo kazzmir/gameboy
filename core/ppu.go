@@ -16,6 +16,7 @@ type PPU struct {
     LCDStatus uint8
     LCDControl uint8
     LCDY uint8
+    LCDYCompare uint8
 
     VideoRam []uint8
 
@@ -130,10 +131,38 @@ func bitN(value uint8, bit uint8) uint8 {
     */
 }
 
-func (ppu *PPU) Run(ppuCycles uint64) {
+type System interface {
+    EnableStatInterrupt()
+}
+
+// set lower 2 bits of LCDStatus
+func (ppu *PPU) SetLCDStatus(value uint8) {
+    ppu.LCDStatus = (ppu.LCDStatus & 0b11111100) | (value & 0b11)
+}
+
+// lower 2 bits of LCDStatus
+func (ppu *PPU) GetPPUMode() uint8 {
+    return ppu.LCDStatus & 0b11
+}
+
+func (ppu *PPU) Run(ppuCycles uint64, system System) {
     for range ppuCycles {
+        if ppu.LCDStatus & 0b100000 != 0 {
+            if ppu.LCDYCompare == ppu.LCDY {
+                system.EnableStatInterrupt()
+            }
+        }
+
+        if ppu.LCDYCompare == ppu.LCDY {
+            ppu.LCDStatus |= 0b100
+        } else {
+            ppu.LCDStatus &= ^uint8(0b100)
+        }
+
         ppu.Dot += 1
         if ppu.Dot < 80 {
+            ppu.SetLCDStatus(2)
+
             // find sprites that hit this scanline
             // scan on the last possible dot
             if ppu.Dot == 79 {
@@ -156,10 +185,12 @@ func (ppu *PPU) Run(ppuCycles uint64) {
 
             // OAM search, mode 2
         } else if ppu.Dot >= 80 {
+            ppu.SetLCDStatus(2)
             // draw pixels, mode 3. usually 172 dots, but could be less
             // after 172 dots, enter mode 0 horizontal blank
 
             if ppu.Dot < 252 {
+                ppu.SetLCDStatus(3)
                 x := ppu.Dot - 80
 
                 if x < 160 && ppu.LCDY < 144 {
@@ -258,8 +289,25 @@ func (ppu *PPU) Run(ppuCycles uint64) {
                         }
                     }
                 }
+            } else {
+                ppu.SetLCDStatus(0)
             }
 
+        }
+
+        switch ppu.GetPPUMode() {
+            case 0:
+                if ppu.LCDStatus & 0b100000 != 0 {
+                    system.EnableStatInterrupt()
+                }
+            case 1:
+                if ppu.LCDStatus & 0b10000 != 0 {
+                    system.EnableStatInterrupt()
+                }
+            case 2:
+                if ppu.LCDStatus & 0b1000 != 0 {
+                    system.EnableStatInterrupt()
+                }
         }
 
         if ppu.Dot >= 456 {
@@ -275,15 +323,6 @@ func (ppu *PPU) Run(ppuCycles uint64) {
 
             if ppu.LCDY >= 154 {
                 ppu.LCDY = 0
-
-                // clear screen, not needed later once every pixel is drawn
-                /*
-                for y := range len(ppu.Screen) {
-                    for x := range len(ppu.Screen[y]) {
-                        ppu.Screen[y][x] = color.RGBA{A: 0xff}
-                    }
-                }
-                */
             }
         }
     }
