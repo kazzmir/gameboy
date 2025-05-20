@@ -41,7 +41,7 @@ func MakeEngine(cpu *core.CPU, maxCycle int64, rate int64, speed float64) *Engin
 func (engine *Engine) runEmulator(cycles int64) error {
     // engine.cpuBudget += core.CPUSpeed / engine.rate
 
-    engine.cpuBudget += int64(float64(cycles) * engine.speed)
+    engine.cpuBudget += int64(float64(cycles) * engine.speed) / 4
     // log.Printf("cpu budget: %v = %v/s. cpu speed = %v. diff = %v", engine.cpuBudget, engine.cpuBudget * engine.rate, core.CPUSpeed, engine.cpuBudget * engine.rate - core.CPUSpeed)
 
     engine.Cpu.Joypad.Reset()
