@@ -78,19 +78,19 @@ func (cpu *CPU) InitializeDMG() {
     cpu.StoreMemory(IOTimerControl, 0xf8)
     cpu.StoreMemory(IOInterrupt, 0xe1)
     cpu.StoreMemory(IOSoundChannel1Sweep, 0x80)
-    cpu.StoreMemory(0xff11, 0xbf)
+    cpu.StoreMemory(IOSoundChannel1Duty, 0xbf)
     cpu.StoreMemory(IOSoundChannel1Volume, 0xf3)
-    cpu.StoreMemory(0xff13, 0xff)
+    cpu.StoreMemory(IOSoundChannel1PeriodLow, 0xff)
     cpu.StoreMemory(IOSoundChannel1PeriodHigh, 0xbf)
-    cpu.StoreMemory(0xff16, 0x3f)
+    cpu.StoreMemory(IOSoundChannel2Duty, 0x3f)
     cpu.StoreMemory(IOSoundChannel2Volume, 0x00)
-    cpu.StoreMemory(0xff18, 0xff)
+    cpu.StoreMemory(IOSoundChannel2PeriodLow, 0xff)
     cpu.StoreMemory(IOSoundChannel2PeriodHigh, 0xbf)
     cpu.StoreMemory(IOSoundChannel3DAC, 0x7f)
-    cpu.StoreMemory(0xff1b, 0xff)
-    cpu.StoreMemory(0xff1c, 0x9f)
-    cpu.StoreMemory(0xff1d, 0xff)
-    cpu.StoreMemory(0xff1e, 0xbf)
+    cpu.StoreMemory(IOSoundChannel3Length, 0xff)
+    cpu.StoreMemory(IOSoundChannel3Volume, 0x9f)
+    cpu.StoreMemory(IOSoundChannel3PeriodLow, 0xff)
+    cpu.StoreMemory(IOSoundChannel3PeriodHigh, 0xbf)
     cpu.StoreMemory(0xff20, 0xff)
     cpu.StoreMemory(IOSoundChannel4Volume, 0x00)
     cpu.StoreMemory(0xff22, 0x00)
@@ -534,10 +534,18 @@ const IOSerialTransferControl = 0xff02
 const IOInterrupt = 0xff0f
 const IOInterruptEnable = 0xffff
 const IOSoundChannel1Sweep = 0xff10
+const IOSoundChannel1Duty = 0xff11
 const IOSoundChannel1Volume = 0xff12
+const IOSoundChannel1PeriodLow = 0xff13
 const IOSoundChannel1PeriodHigh = 0xff14
+const IOSoundChannel2Duty = 0xff16
 const IOSoundChannel2Volume = 0xff17
+const IOSoundChannel2PeriodLow = 0xff18
 const IOSoundChannel2PeriodHigh = 0xff19
+const IOSoundChannel3Length = 0xff1b
+const IOSoundChannel3Volume = 0xff1c
+const IOSoundChannel3PeriodLow = 0xff1d
+const IOSoundChannel3PeriodHigh = 0xff1e
 const IOSoundChannel4Volume = 0xff21
 const IOSoundChannel4Control = 0xff23
 const IOSoundChannel3DAC = 0xff1a
@@ -595,11 +603,27 @@ func (cpu *CPU) StoreMemory(address uint16, value uint8) {
             // FIXME: implement with APU
         case address == IOSoundChannel1PeriodHigh:
             // FIXME: implement with APU
+        case address == IOSoundChannel1Duty:
+            // FIXME: implement with APU
+        case address == IOSoundChannel1PeriodLow:
+            // FIXME: implement with APU
+        case address == IOSoundChannel2Duty:
+            // FIXME: implement with APU
         case address == IOSoundChannel2Volume:
+            // FIXME: implement with APU
+        case address == IOSoundChannel2PeriodLow:
             // FIXME: implement with APU
         case address == IOSoundChannel2PeriodHigh:
             // FIXME: implement with APU
+        case address == IOSoundChannel3Length:
+            // FIXME: implement with APU
         case address == IOSoundChannel3DAC:
+            // FIXME: implement with APU
+        case address == IOSoundChannel3Volume:
+            // FIXME: implement with APU
+        case address == IOSoundChannel3PeriodLow:
+            // FIXME: implement with APU
+        case address == IOSoundChannel3PeriodHigh:
             // FIXME: implement with APU
         case address == IOSoundChannel4Volume:
             // FIXME: implement with APU
