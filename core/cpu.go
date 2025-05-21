@@ -119,7 +119,6 @@ type CPU struct {
     Stopped bool
     Halted bool
 
-    Rom []uint8
     Ram []uint8
 
     HighRam []uint8
@@ -131,9 +130,8 @@ type CPU struct {
     Error bool
 }
 
-func MakeCPU(rom []uint8, mbc MBC) *CPU {
+func MakeCPU(mbc MBC) *CPU {
     return &CPU{
-        Rom: rom,
         Ram: make([]uint8, 0x2000),
         HighRam: make([]uint8, 0xfffe - 0xff80 + 1),
         PPU: MakePPU(),
@@ -661,12 +659,15 @@ const IOOAM_DMA_Transfer = 0xff46
 func (cpu *CPU) StoreMemory(address uint16, value uint8) {
     switch {
         case address < 0x8000:
+            cpu.MBC.Write(address, value)
+            /*
             // normally this would be writing to an MBC controller to change the bank
             if address == 0x2000 {
                 // ignore
             } else if cpu.Error {
                 log.Printf("Attempted to write to ROM at address 0x%x", address)
             }
+            */
         case address >= VRamStart && address < VRamEnd:
             // log.Printf("Write to vram 0x%x = 0x%x", address, value)
             cpu.PPU.WriteVRam(address - VRamStart, value)
@@ -806,7 +807,7 @@ func (cpu *CPU) LoadMemory8(address uint16) uint8 {
     // log.Printf("Load memory at address 0x%x", address)
 
     switch {
-        case address < 0x8000: return cpu.Rom[address]
+        case address < 0x8000: return cpu.MBC.Read(address)
         case address >= VRamStart && address < VRamEnd:
             return cpu.PPU.LoadVRam(address - VRamStart)
         case address >= WRamStart && address < WRamEnd:

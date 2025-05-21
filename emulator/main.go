@@ -188,13 +188,13 @@ func main(){
     log.Printf("CGB Flag: %v", gameboyFile.GetCGBFlag())
     log.Printf("Cartidge type: %v", gameboyFile.GetCartridgeType())
 
-    mbc, err := core.MakeMBC(gameboyFile.GetCartridgeType())
+    mbc, err := core.MakeMBC(gameboyFile.GetCartridgeType(), gameboyFile.GetRom())
     if err != nil {
         log.Printf("Error: unhandled cartridge type %v: %v", gameboyFile.GetCartridgeType(), err)
         return
     }
 
-    cpu := core.MakeCPU(gameboyFile.GetRom(), mbc)
+    cpu := core.MakeCPU(mbc)
     cpu.InitializeDMG()
     cpu.Debug = *cpuDebug
     cpu.Error = true
