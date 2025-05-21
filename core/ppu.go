@@ -280,18 +280,18 @@ func (ppu *PPU) Run(ppuCycles uint64, system System) {
 
                             // FIXME: use real palette
                             switch paletteColor {
-                                case 0: pixelColor = color.RGBA{255, 255, 255, 255} // white
+                                case 0: pixelColor = color.RGBA{} // transparent
                                 case 1: pixelColor = color.RGBA{192, 192, 192, 255} // light gray
                                 case 2: pixelColor = color.RGBA{96, 96, 96, 255} // dark gray
                                 case 3: pixelColor = color.RGBA{0, 0, 0, 255} // black
                             }
 
-                            // r, g, b, a := pixelColor.RGBA()
-                            // convert to RGBA8888
-                            // ppu.Screen[ppu.LCDY][x] = (r << 24) | (g << 16) | (b << 8) | (a << 0)
-                            ppu.Screen[ppu.LCDY][x] = pixelColor
-
-                            // find pixel and write it into the screen
+                            if paletteColor != 0 {
+                                // r, g, b, a := pixelColor.RGBA()
+                                // convert to RGBA8888
+                                // ppu.Screen[ppu.LCDY][x] = (r << 24) | (g << 16) | (b << 8) | (a << 0)
+                                ppu.Screen[ppu.LCDY][x] = pixelColor
+                            }
                         }
                     }
                 }
