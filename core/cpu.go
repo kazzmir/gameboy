@@ -668,6 +668,8 @@ func (cpu *CPU) StoreMemory(address uint16, value uint8) {
                 log.Printf("Attempted to write to ROM at address 0x%x", address)
             }
             */
+        case address >= 0xa000 && address < 0xc000:
+            cpu.MBC.Write(address, value)
         case address >= VRamStart && address < VRamEnd:
             // log.Printf("Write to vram 0x%x = 0x%x", address, value)
             cpu.PPU.WriteVRam(address - VRamStart, value)
