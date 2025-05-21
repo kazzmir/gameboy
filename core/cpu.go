@@ -2263,6 +2263,7 @@ func (cpu *CPU) Execute(instruction Instruction) uint64 {
 
         default:
             log.Printf("Execute error: unknown opcode %v", instruction.Opcode)
+            cpu.Cycles += 1
     }
 
     return cpu.Cycles - oldCycles
