@@ -49,7 +49,7 @@ func (mbc1 *MBC1) Read(address uint16) uint8 {
                 return mbc1.rom[address]
             }
 
-            address2 := (uint32(mbc1.ramBank) << 18) | uint32(address)
+            address2 := (uint32(mbc1.ramBank) << 19) | uint32(address)
             if address2 >= uint32(len(mbc1.rom)) {
                 log.Printf("Attempted to read from ROM at address 0x%x", address)
                 return 0
@@ -57,7 +57,7 @@ func (mbc1 *MBC1) Read(address uint16) uint8 {
             return mbc1.rom[address2]
             
         case address >= 0x4000 && address < 0x8000:
-            address2 := (uint32(mbc1.ramBank) << 18) | (uint32(mbc1.romBank) << 13) | uint32(address)
+            address2 := (uint32(mbc1.ramBank) << 19) | (uint32(mbc1.romBank) << 14) | uint32(address)
             if address2 >= uint32(len(mbc1.rom)) {
                 log.Printf("Attempted to read from ROM at address 0x%x", address)
                 return 0
@@ -69,7 +69,7 @@ func (mbc1 *MBC1) Read(address uint16) uint8 {
                     return mbc1.rom[address - 0xa000]
                 }
 
-                address2 := (uint32(mbc1.ramBank) << 12) | uint32(address - 0xa000)
+                address2 := (uint32(mbc1.ramBank) << 13) | uint32(address - 0xa000)
                 if address2 >= uint32(len(mbc1.ram)) {
                     log.Printf("Attempted to read from RAM at address 0x%x", address)
                     return 0
@@ -104,7 +104,7 @@ func (mbc1 *MBC1) Write(address uint16, value uint8) {
                 if mbc1.ramBank == 0 {
                     mbc1.rom[address - 0xa000] = value
                 } else {
-                    address2 := (uint32(mbc1.ramBank) << 12) | uint32(address - 0xa000)
+                    address2 := (uint32(mbc1.ramBank) << 13) | uint32(address - 0xa000)
                     if address2 >= uint32(len(mbc1.ram)) {
                         log.Printf("Attempted to write to RAM at address 0x%x", address)
                         return
