@@ -810,6 +810,7 @@ func (cpu *CPU) LoadMemory8(address uint16) uint8 {
 
     switch {
         case address < 0x8000: return cpu.MBC.Read(address)
+        case address >= 0xa000 && address < 0xc000: return cpu.MBC.Read(address)
         case address >= VRamStart && address < VRamEnd:
             return cpu.PPU.LoadVRam(address - VRamStart)
         case address >= WRamStart && address < WRamEnd:
@@ -1114,7 +1115,7 @@ func (cpu *CPU) doXorA(value uint8) {
 func (cpu *CPU) Execute(instruction Instruction) uint64 {
     oldCycles := cpu.Cycles
     if cpu.Debug {
-        log.Printf("cycle=%v pc=0x%x stack=0x%x executing instruction: %+v", cpu.Cycles, cpu.PC, cpu.SP, instruction)
+        log.Printf("cycle=%v pc=0x%x stack=0x%x bc=0x%x hl=0x%x executing instruction: %+v", cpu.Cycles, cpu.PC, cpu.SP, cpu.BC, cpu.HL, instruction)
     }
     switch instruction.Opcode {
         case Nop:

@@ -36,6 +36,8 @@ type MBC1 struct {
     rom []uint8
     romBank uint8 // 0x2000 register
     ramBank uint8 // 0x4000 register
+    ramEnabled bool // 0x6000 register
+    ram []uint8
 
     mode uint8
 }
@@ -61,6 +63,20 @@ func (mbc1 *MBC1) Read(address uint16) uint8 {
                 return 0
             }
             return mbc1.rom[address2]
+        case address >= 0xA000 && address < 0xC000:
+            if mbc1.ramEnabled {
+                if mbc1.ramBank == 0 {
+                    return mbc1.rom[address - 0xa000]
+                }
+
+                address2 := (uint32(mbc1.ramBank) << 13) | uint32(address - 0xa000)
+                if address2 >= uint32(len(mbc1.ram)) {
+                    log.Printf("Attempted to read from RAM at address 0x%x", address)
+                    return 0
+                }
+
+                return mbc1.ram[address2]
+            }
     }
 
     return 0
@@ -68,6 +84,12 @@ func (mbc1 *MBC1) Read(address uint16) uint8 {
 
 func (mbc1 *MBC1) Write(address uint16, value uint8) {
     switch {
+        case address < 0x2000:
+            if value & 0b1111 == 0xa {
+                mbc1.ramEnabled = true
+            } else {
+                mbc1.ramEnabled = false
+            }
         case address >= 0x2000 && address < 0x4000:
             mbc1.romBank = value & 0x1F
             if mbc1.romBank == 0 {
@@ -77,6 +99,21 @@ func (mbc1 *MBC1) Write(address uint16, value uint8) {
             mbc1.ramBank = value & 0x03
         case address >= 0x6000 && address < 0x8000:
             mbc1.mode = value & 0x01
+        case address >= 0xA000 && address < 0xC000:
+            if mbc1.ramEnabled {
+                if mbc1.ramBank == 0 {
+                    mbc1.rom[address - 0xa000] = value
+                } else {
+                    address2 := (uint32(mbc1.ramBank) << 13) | uint32(address - 0xa000)
+                    if address2 >= uint32(len(mbc1.ram)) {
+                        log.Printf("Attempted to write to RAM at address 0x%x", address)
+                        return
+                    }
+                    mbc1.ram[address2] = value
+                }
+            }
+        default:
+            log.Printf("Warning: Attempted to write to ROM at address 0x%x: 0x%x", address, value)
     }
 }
 
@@ -91,6 +128,8 @@ func MakeMBC(mbcType uint8, rom []uint8) (MBC, error) {
             return &MBC1{
                 rom: rom,
                 romBank: 1,
+                // FIXME: not all cartidges have all 32k
+                ram: make([]uint8, 0x8000),
             }, nil
         default:
             return nil, fmt.Errorf("Unknown MBC type")
