@@ -188,7 +188,7 @@ func (cpu *CPU) InitializeDMG() {
     cpu.StoreMemory(IOLCDY, 0x00)
     cpu.StoreMemory(IOLCDYCompare, 0x00)
     cpu.StoreMemory(IOOAM_DMA_Transfer, 0xff)
-    cpu.StoreMemory(0xff47, 0xfc)
+    cpu.StoreMemory(IOPalette, 0xfc)
     cpu.StoreMemory(IOWindowY, 0x00)
     cpu.StoreMemory(IOWindowX, 0x00)
     cpu.StoreMemory(IOInterruptEnable, 0x00)
