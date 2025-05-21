@@ -55,6 +55,12 @@ type Sprite struct {
     Attributes uint8
 }
 
+// returns the obj palette number, 0 or 1
+func (sprite *Sprite) Palette() uint8 {
+    // bit 4 of attributes
+    return (sprite.Attributes & 0b10000) >> 4
+}
+
 func (ppu *PPU) ReadSprites() []Sprite {
     for index := range len(ppu.Sprites) {
         ppu.Sprites[index].Y = ppu.OAM[index*4]
@@ -147,6 +153,23 @@ func (ppu *PPU) GetPPUMode() uint8 {
     return ppu.LCDStatus & 0b11
 }
 
+var dmgPalette = [4]color.RGBA{
+    {0xbc, 0xe9, 0xbb, 255}, // light green
+    {0x9e, 0xc3, 0x9d, 255}, // dark green
+    {0x60, 0x77, 0x60, 255}, // dark gray
+    {0x2a, 0x34, 0x2a, 255}, // black
+    /*
+    {255, 255, 255, 255}, // white
+    {192, 192, 192, 255}, // light gray
+    {96, 96, 96, 255}, // dark gray
+    {0, 0, 0, 255}, // black
+    */
+}
+
+func (ppu *PPU) GetPalette(palette uint8, colorIndex uint8) uint8 {
+    return (palette >> (colorIndex * 2)) & 0b11
+}
+
 func (ppu *PPU) Run(ppuCycles uint64, system System) {
     for range ppuCycles {
         if ppu.LCDStatus & 0b100000 != 0 {
@@ -222,12 +245,6 @@ func (ppu *PPU) Run(ppuCycles uint64, system System) {
 
                         vramIndex := uint16(tileIndex)*16
 
-                        /*
-                        if ppu.LCDY == 8 || ppu.LCDY == 9 {
-                            log.Printf("dot x=%v y=%v, bg x=%v y=%v tile=0x%x vram=0x%x", x, ppu.LCDY, backgroundX, backgroundY, tileIndex, vramIndex)
-                        }
-                        */
-
                         yValue := uint16(ppu.LCDY) % 8
 
                         lowByte := ppu.VideoRam[vramIndex + yValue * 2]
@@ -235,25 +252,8 @@ func (ppu *PPU) Run(ppuCycles uint64, system System) {
                         bit := uint8(7 - (x & 7))
                         paletteColor := bitN(lowByte, bit) | (bitN(highByte, bit) << 1)
 
-                        /*
-                        if tileIndex == 0x1d {
-                            log.Printf("x=%v y=%v low=%v high=%v bit=%v palette=%v", x, ppu.LCDY, lowByte, highByte, bit, paletteColor)
-                        }
-                        */
+                        pixelColor := dmgPalette[ppu.GetPalette(ppu.Palette, paletteColor)]
 
-                        var pixelColor color.RGBA
-
-                        // FIXME: use real palette
-                        switch paletteColor {
-                            case 0: pixelColor = color.RGBA{255, 255, 255, 255} // white
-                            case 1: pixelColor = color.RGBA{192, 192, 192, 255} // light gray
-                            case 2: pixelColor = color.RGBA{96, 96, 96, 255} // dark gray
-                            case 3: pixelColor = color.RGBA{0, 0, 0, 255} // black
-                        }
-
-                        // r, g, b, a := pixelColor.RGBA()
-                        // convert to RGBA8888
-                        // ppu.Screen[ppu.LCDY][x] = (r << 24) | (g << 16) | (b << 8) | (a << 0)
                         ppu.Screen[ppu.LCDY][x] = pixelColor
                     }
 
@@ -276,20 +276,13 @@ func (ppu *PPU) Run(ppuCycles uint64, system System) {
                             bit := uint8(7 - (int(x) - spriteX))
                             paletteColor := bitN(lowByte, bit) | (bitN(highByte, bit) << 1)
 
-                            var pixelColor color.RGBA
-
-                            // FIXME: use real palette
-                            switch paletteColor {
-                                case 0: pixelColor = color.RGBA{} // transparent
-                                case 1: pixelColor = color.RGBA{192, 192, 192, 255} // light gray
-                                case 2: pixelColor = color.RGBA{96, 96, 96, 255} // dark gray
-                                case 3: pixelColor = color.RGBA{0, 0, 0, 255} // black
-                            }
-
                             if paletteColor != 0 {
-                                // r, g, b, a := pixelColor.RGBA()
-                                // convert to RGBA8888
-                                // ppu.Screen[ppu.LCDY][x] = (r << 24) | (g << 16) | (b << 8) | (a << 0)
+                                var pixelColor color.RGBA
+                                switch sprite.Palette() {
+                                    case 0: pixelColor = dmgPalette[ppu.GetPalette(ppu.ObjPalette0, paletteColor)]
+                                    case 1: pixelColor = dmgPalette[ppu.GetPalette(ppu.ObjPalette1, paletteColor)]
+                                }
+
                                 ppu.Screen[ppu.LCDY][x] = pixelColor
                             }
                         }
