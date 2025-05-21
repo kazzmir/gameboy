@@ -125,17 +125,19 @@ type CPU struct {
     HighRam []uint8
 
     PPU *PPU
+    MBC MBC
 
     Debug bool
     Error bool
 }
 
-func MakeCPU(rom []uint8) *CPU {
+func MakeCPU(rom []uint8, mbc MBC) *CPU {
     return &CPU{
         Rom: rom,
         Ram: make([]uint8, 0x2000),
         HighRam: make([]uint8, 0xfffe - 0xff80 + 1),
         PPU: MakePPU(),
+        MBC: mbc,
     }
 }
 
