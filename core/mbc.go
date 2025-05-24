@@ -57,11 +57,12 @@ func (mbc1 *MBC1) Read(address uint16) uint8 {
             return mbc1.rom[address2]
             
         case address >= 0x4000 && address < 0x8000:
-            address2 := (uint32(mbc1.ramBank) << 19) | (uint32(mbc1.romBank) << 14) | uint32(address)
+            address2 := (uint32(mbc1.ramBank) << 19) | (uint32(mbc1.romBank) << 14) | uint32(address - 0x4000)
             if address2 >= uint32(len(mbc1.rom)) {
                 log.Printf("Attempted to read from ROM at address 0x%x", address)
                 return 0
             }
+            // log.Printf("mbc1 read 0x4000 range address=0x%x, romBank=%d, ramBank=%d, address2=0x%x value=0x%x", address, mbc1.romBank, mbc1.ramBank, address2, mbc1.rom[address2])
             return mbc1.rom[address2]
         case address >= 0xA000 && address < 0xC000:
             if mbc1.ramEnabled {
@@ -83,6 +84,7 @@ func (mbc1 *MBC1) Read(address uint16) uint8 {
 }
 
 func (mbc1 *MBC1) Write(address uint16, value uint8) {
+    // log.Printf("mbc1 write: 0x%x = 0x%x", address, value)
     switch {
         case address < 0x2000:
             if value & 0b1111 == 0xa {
@@ -98,6 +100,7 @@ func (mbc1 *MBC1) Write(address uint16, value uint8) {
         case address >= 0x4000 && address < 0x6000:
             mbc1.ramBank = value & 0x03
         case address >= 0x6000 && address < 0x8000:
+            // log.Printf("mbc1: set ram/rom mode to 0x%x", value)
             mbc1.mode = value & 0x01
         case address >= 0xA000 && address < 0xC000:
             if mbc1.ramEnabled {
@@ -111,6 +114,8 @@ func (mbc1 *MBC1) Write(address uint16, value uint8) {
                     }
                     mbc1.ram[address2] = value
                 }
+            } else {
+                log.Printf("Warning: mbc1 write to RAM when disabled: 0x%x = 0x%x", address, value)
             }
         default:
             log.Printf("Warning: Attempted to write to ROM at address 0x%x: 0x%x", address, value)

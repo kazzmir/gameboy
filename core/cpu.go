@@ -854,7 +854,7 @@ func (cpu *CPU) RunTimer(cycles uint64) {
                 case 3: cpu.TimerRate = 256
             }
 
-            log.Printf("timer is now %v", cpu.Timer)
+            // log.Printf("timer is now %v", cpu.Timer)
             cpu.Timer += 1
             if cpu.Timer == 0 {
                 cpu.InterruptFlag |= 0b00000100
