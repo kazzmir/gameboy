@@ -697,14 +697,14 @@ func (cpu *CPU) StoreMemory(address uint16, value uint8) {
             cpu.Joypad.SetButtons(buttons == 0)
             cpu.Joypad.SetDpad(dpad == 0)
         case address == IOSoundChannel1Sweep:
-            // FIXME: implement with APU
+            cpu.APU.SetPulse1Sweep(value)
         case address == IOSoundChannel1Volume:
             // FIXME: implement with APU
         case address == IOSoundChannel1PeriodHigh:
-            // FIXME: implement with APU
-        case address == IOSoundChannel1Duty:
-            // FIXME: implement with APU
+            cpu.APU.SetPulse1PeriodHigh(value)
         case address == IOSoundChannel1PeriodLow:
+            cpu.APU.SetPulse1PeriodLow(value)
+        case address == IOSoundChannel1Duty:
             // FIXME: implement with APU
         case address == IOSoundChannel2Duty:
             // FIXME: implement with APU
@@ -847,6 +847,9 @@ func (cpu *CPU) LoadMemory8(address uint16) uint8 {
             return cpu.PPU.ObjPalette1
         case address == IOJoypad:
             return cpu.Joypad.GetValue()
+        case address == IOSoundChannel1Sweep:
+            // FIXME: get from apu
+            return 0
         case address == IOSoundChannel1Duty:
             // FIXME: need apu
             return 0

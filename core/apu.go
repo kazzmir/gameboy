@@ -4,11 +4,48 @@ type Pulse struct {
     Enabled bool
     PanLeft bool
     PanRight bool
+
+    Period uint16
+
+    PeriodHigh uint16
+    PeriodLow uint16
+
+    Pace uint8
+    Direction uint8
+    Step uint8
+
+    cycles uint64
+}
+
+func (pulse *Pulse) SetSweep(pace uint8, direction uint8, step uint8) {
+    pulse.Pace = pace
+    pulse.Direction = direction
+    pulse.Step = step
 }
 
 func (pulse *Pulse) SetPanning(left bool, right bool) {
     pulse.PanLeft = left
     pulse.PanRight = right
+}
+
+func (pulse *Pulse) SetPeriodHigh(value uint8) {
+    pulse.PeriodHigh = uint16(value & 0b111)
+}
+
+func (pulse *Pulse) SetPeriodLow(value uint8) {
+    pulse.PeriodLow = uint16(value)
+}
+
+// run 1 cycle
+func (pulse *Pulse) Run() {
+    pulse.cycles += 1
+    for pulse.cycles >= 4 {
+        pulse.cycles -= 4
+        pulse.Period += 1
+        if pulse.Period >= 2048 {
+            pulse.Period = (pulse.PeriodHigh << 8) | pulse.PeriodLow
+        }
+    }
 }
 
 type Wave struct {
@@ -55,6 +92,21 @@ func (stream *AudioStream) Read(data []byte) (int, error) {
 
 func (apu *APU) GetAudioStream() *AudioStream {
     return &AudioStream{}
+}
+
+func (apu *APU) SetPulse1Sweep(value uint8) {
+    pace := (value & 0b111_0000) >> 4
+    direction := (value & 0b1_000) >> 3
+    step := value & 0b111
+    apu.Pulse1.SetSweep(pace, direction, step)
+}
+
+func (apu *APU) SetPulse1PeriodHigh(value uint8) {
+    apu.Pulse1.SetPeriodHigh(value)
+}
+
+func (apu *APU) SetPulse1PeriodLow(value uint8) {
+    apu.Pulse1.SetPeriodLow(value)
 }
 
 func (apu *APU) SetMasterEnabled(enabled bool) {
@@ -137,4 +189,8 @@ func (apu *APU) ReadMasterControl() uint8 {
 }
 
 func (apu *APU) Run(cycles uint64) {
+    for cycles > 0 {
+        cycles -= 1
+        apu.Pulse1.Run()
+    }
 }

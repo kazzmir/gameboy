@@ -112,6 +112,7 @@ func (engine *Engine) runEmulator(cycles int64) error {
     }
 
     if !engine.paused {
+        // divide by 4 because the cpu clock is 1/4th of the master clock
         engine.cpuBudget += int64(float64(cycles) * (engine.speed + speedBoost)) / 4
     }
 
@@ -121,7 +122,7 @@ func (engine *Engine) runEmulator(cycles int64) error {
         next, _ := engine.Cpu.DecodeInstruction()
         cpuCyclesTaken += engine.Cpu.Execute(next)
         engine.Cpu.PPU.Run(cpuCyclesTaken * 4, engine.Cpu)
-        engine.Cpu.APU.Run(cpuCyclesTaken)
+        engine.Cpu.APU.Run(cpuCyclesTaken * 4)
 
         engine.cpuBudget -= int64(cpuCyclesTaken)
 
