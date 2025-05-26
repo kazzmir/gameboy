@@ -25,6 +25,10 @@ func MakeAPU() *APU {
     }
 }
 
+func (apu *APU) SetMasterEnabled(enabled bool) {
+    apu.MasterEnabled = enabled
+}
+
 func (apu *APU) ReadMasterControl() uint8 {
     var out uint8
     if apu.MasterEnabled {
