@@ -168,6 +168,11 @@ func (ppu *PPU) GetBackgroundTileMode() uint8 {
     return (ppu.LCDControl & 0b10000) >> 4
 }
 
+func (ppu *PPU) ShowObjects() bool {
+    // bit 1 of lcd control
+    return (ppu.LCDControl & 0b10) != 0
+}
+
 // lower 2 bits of LCDStatus
 func (ppu *PPU) GetPPUMode() uint8 {
     return ppu.LCDStatus & 0b11
@@ -190,7 +195,16 @@ func (ppu *PPU) GetPalette(palette uint8, colorIndex uint8) uint8 {
     return (palette >> (colorIndex * 2)) & 0b11
 }
 
+func (ppu *PPU) Disabled() bool {
+    // bit 7 of LCDControl
+    return (ppu.LCDControl & 0x80) == 0
+}
+
 func (ppu *PPU) Run(ppuCycles uint64, system System) {
+    if ppu.Disabled() {
+        return
+    }
+
     for range ppuCycles {
         if ppu.LCDStatus & 0b100000 != 0 {
             if ppu.LCDYCompare == ppu.LCDY {
@@ -266,12 +280,6 @@ func (ppu *PPU) Run(ppuCycles uint64, system System) {
 
                         vramIndex := uint16(tileIndex)*16
 
-                        /*
-                        if backgroundX == 7 && backgroundY == 2 {
-                            log.Printf("%v,%v:= tile=0x%x address=0x%x mode=%v", backgroundX, backgroundY, tileIndex, vramIndex, ppu.GetBackgroundTileMode())
-                        }
-                        */
-
                         vramBase := uint16(0)
                         switch ppu.GetBackgroundTileMode() {
                             // 0-127: 0x8000
@@ -301,42 +309,54 @@ func (ppu *PPU) Run(ppuCycles uint64, system System) {
                         ppu.Screen[ppu.LCDY][x] = pixelColor
                     }
 
-                    for _, spriteIndex := range ppu.LineSprites {
-                        sprite := &ppu.Sprites[spriteIndex]
-                        spriteX := int(sprite.X) - 8
-                        // spriteY := int(sprite.Y) - 16
+                    if ppu.ShowObjects() {
+                        for i, spriteIndex := range ppu.LineSprites {
+                            sprite := &ppu.Sprites[spriteIndex]
+                            spriteX := int(sprite.X) - 8
+                            // spriteY := int(sprite.Y) - 16
 
-                        if int(x) >= spriteX && int(x) < spriteX+int(size) {
-                            yValue := uint16(ppu.LCDY) % uint16(size)
-
-                            vramIndex := uint16(sprite.TileIndex)*16
-                            if ppu.LargeSpriteMode() {
-                                if yValue < 8 {
-                                    vramIndex = uint16(sprite.TileIndex & (^uint8(0b1))) * 16
-                                } else {
-                                    vramIndex = uint16(sprite.TileIndex | 1) * 16
-                                }
-                            }
-
-                            lowByte := ppu.VideoRam[vramIndex + yValue * 2]
-                            highByte := ppu.VideoRam[vramIndex + yValue * 2 + 1]
-                            // bit := uint8(7 - (x & 7))
-
-                            bit := uint8(7 - (int(x) - spriteX))
-                            if sprite.XFlipped() {
-                                bit = 7 - bit
-                            }
-
-                            paletteColor := bitN(lowByte, bit) | (bitN(highByte, bit) << 1)
-
-                            if paletteColor != 0 {
-                                var pixelColor color.RGBA
-                                switch sprite.Palette() {
-                                    case 0: pixelColor = dmgPalette[ppu.GetPalette(ppu.ObjPalette0, paletteColor)]
-                                    case 1: pixelColor = dmgPalette[ppu.GetPalette(ppu.ObjPalette1, paletteColor)]
+                            if int(x) >= spriteX && int(x) < spriteX+int(size) {
+                                yValue := uint16(ppu.LCDY) % uint16(size)
+                                if sprite.YFlipped() {
+                                    yValue = uint16(size) - 1 - yValue
                                 }
 
-                                ppu.Screen[ppu.LCDY][x] = pixelColor
+                                vramIndex := uint16(sprite.TileIndex)*16
+                                if ppu.LargeSpriteMode() {
+                                    if yValue < 8 {
+                                        vramIndex = uint16(sprite.TileIndex & (^uint8(0b1))) * 16
+                                    } else {
+                                        vramIndex = uint16(sprite.TileIndex | 1) * 16
+                                        yValue -= 8
+                                    }
+                                }
+
+                                /*
+                                if int(x) == spriteX && i == 0 {
+                                    log.Printf("sprite 0: x=%d, y=%d, tile=0x%x, attributes=0x%x, vramIndex=0x%x, yValue=%d", sprite.X, sprite.Y, sprite.TileIndex, sprite.Attributes, vramIndex, yValue)
+                                }
+                                */
+
+                                lowByte := ppu.VideoRam[vramIndex + yValue * 2]
+                                highByte := ppu.VideoRam[vramIndex + yValue * 2 + 1]
+                                // bit := uint8(7 - (x & 7))
+
+                                bit := uint8(7 - (int(x) - spriteX))
+                                if sprite.XFlipped() {
+                                    bit = 7 - bit
+                                }
+
+                                paletteColor := bitN(lowByte, bit) | (bitN(highByte, bit) << 1)
+
+                                if paletteColor != 0 {
+                                    var pixelColor color.RGBA
+                                    switch sprite.Palette() {
+                                        case 0: pixelColor = dmgPalette[ppu.GetPalette(ppu.ObjPalette0, paletteColor)]
+                                        case 1: pixelColor = dmgPalette[ppu.GetPalette(ppu.ObjPalette1, paletteColor)]
+                                    }
+
+                                    ppu.Screen[ppu.LCDY][x] = pixelColor
+                                }
                             }
                         }
                     }
