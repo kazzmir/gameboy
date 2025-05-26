@@ -124,6 +124,10 @@ func (ppu *PPU) WriteOAM(address uint16, value uint8) {
     }
 }
 
+func (ppu *PPU) ReadOAM(address uint16) uint8 {
+    return ppu.OAM[address]
+}
+
 func (ppu *PPU) LargeSpriteMode() bool {
     // bit 2 of LCDControl
     return (ppu.LCDControl & 0x4) != 0
@@ -217,7 +221,7 @@ func (ppu *PPU) WindowTileMap() uint16 {
 
 func (ppu *PPU) Run(ppuCycles uint64, system System) {
     for range ppuCycles {
-        if ppu.LCDStatus & 0b100000 != 0 {
+        if ppu.LCDStatus & 0b100_0000 != 0 {
             if ppu.LCDYCompare == ppu.LCDY {
                 system.EnableStatInterrupt()
             }

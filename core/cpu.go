@@ -775,7 +775,7 @@ func (cpu *CPU) StoreMemory(address uint16, value uint8) {
         case address == IOObjPalette1:
             cpu.PPU.ObjPalette1 = value
         case address == IOLCDStatus:
-            cpu.PPU.LCDStatus = (value & 0b111100) | (cpu.PPU.LCDStatus & 0b000011)
+            cpu.PPU.LCDStatus = (value & 0b111_1100) | (cpu.PPU.LCDStatus & 0b000011)
             // log.Printf("LCD status is now %08b", cpu.PPU.LCDStatus)
         case address == IOLCDControl:
             // log.Printf("ppu: Write %v to lcd control", value)
@@ -819,6 +819,8 @@ func (cpu *CPU) LoadMemory8(address uint16) uint8 {
             return cpu.Ram[address - WRamMirrorStart]
         case address >= 0xff80 && address <= 0xfffe:
             return cpu.HighRam[address - 0xff80]
+        case address >= OAMStart && address < OAMEnd:
+            return cpu.PPU.ReadOAM(address - OAMStart)
         case address == IOLCDControl:
             return cpu.PPU.LCDControl
         case address == IOLCDStatus:
@@ -2297,6 +2299,7 @@ func (cpu *CPU) EnableJoypad() {
 }
 
 func (cpu *CPU) EnableStatInterrupt() {
+    // log.Printf("stat interrupt")
     cpu.InterruptFlag |= 0b00010
 }
 
@@ -2330,7 +2333,7 @@ func (cpu *CPU) HandleInterrupts() uint64 {
                 cpu.InterruptMasterFlag = false
                 // interrupt takes 5 cycles, reset vector itself takes 4
                 /*
-                if info.Bits == joypadBits {
+                if info.Bits == lcdBits {
                     log.Printf("Invoke interrupt %v 0x%x", info.Bits, info.Vector)
                 }
                 */
