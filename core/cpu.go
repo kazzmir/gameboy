@@ -751,6 +751,8 @@ func (cpu *CPU) StoreMemory(address uint16, value uint8) {
             cpu.TimerDivider = 0
         case address == IOTimerModulo:
             cpu.TimerModulo = value
+        case address == IOTimerCounter:
+            cpu.Timer = value
         case address == IOTimerControl:
             enable := (value & 0b100) > 0
             clockSelect := value & 0b11
@@ -833,6 +835,8 @@ func (cpu *CPU) LoadMemory8(address uint16) uint8 {
             return cpu.PPU.WindowY
         case address == IOWindowX:
             return cpu.PPU.WindowX
+        case address == IOTimerCounter:
+            return cpu.Timer
         case address == IOTimerDivider:
             // log.Printf("read io timer divider: 0x%x", cpu.TimerDivider)
             return uint8(cpu.TimerDivider / 256)
