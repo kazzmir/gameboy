@@ -46,6 +46,17 @@ func MakeAPU() *APU {
     }
 }
 
+type AudioStream struct {
+}
+
+func (stream *AudioStream) Read(data []byte) (int, error) {
+    return 0, nil
+}
+
+func (apu *APU) GetAudioStream() *AudioStream {
+    return &AudioStream{}
+}
+
 func (apu *APU) SetMasterEnabled(enabled bool) {
     apu.MasterEnabled = enabled
 }

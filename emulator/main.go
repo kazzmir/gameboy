@@ -15,9 +15,12 @@ import (
     "github.com/hajimehoshi/ebiten/v2/inpututil"
     "github.com/hajimehoshi/ebiten/v2/vector"
     "github.com/hajimehoshi/ebiten/v2/ebitenutil"
+    "github.com/hajimehoshi/ebiten/v2/audio"
 )
 
 var RestartError = fmt.Errorf("Restart")
+
+const SampleRate = 44100
 
 type Engine struct {
     MakeCpu func () (*core.CPU, error)
@@ -30,9 +33,12 @@ type Engine struct {
     maxCycle int64
     speed float64
     paused bool
+
+    audioContext *audio.Context
+    audioPlayer *audio.Player
 }
 
-func MakeEngine(makeCpu func () (*core.CPU, error), maxCycle int64, rate int64, speed float64) (*Engine, error) {
+func MakeEngine(makeCpu func () (*core.CPU, error), maxCycle int64, rate int64, speed float64, audioContext *audio.Context) (*Engine, error) {
     ticker := time.NewTicker(time.Second / time.Duration(rate))
 
     cpu, err := makeCpu()
@@ -48,6 +54,7 @@ func MakeEngine(makeCpu func () (*core.CPU, error), maxCycle int64, rate int64, 
         rate: rate,
         maxCycle: maxCycle,
         speed: speed,
+        audioContext: audioContext,
     }, nil
 }
 
@@ -155,9 +162,22 @@ func (engine *Engine) Update() error {
         if err != nil {
             return err
         }
+        if engine.audioPlayer != nil {
+            engine.audioPlayer.Close()
+        }
+        engine.audioPlayer = nil
         engine.Cpu = cpu
 
         return nil
+    }
+
+    if engine.audioPlayer == nil {
+        player, err := engine.audioContext.NewPlayerF32(engine.Cpu.APU.GetAudioStream())
+        if err != nil {
+            log.Printf("Error creating audio player: %v", err)
+        } else {
+            engine.audioPlayer = player
+        }
     }
 
     return err
@@ -250,7 +270,9 @@ func main(){
         log.Printf("Max cycles: %v, %0.3f seconds", *maxCycle, float64(*maxCycle) / (float64(core.CPUSpeed) * (*speed)))
     }
 
-    engine, err := MakeEngine(makeCpu, *maxCycle, int64(*fps), *speed)
+    audioContext := audio.NewContext(SampleRate)
+
+    engine, err := MakeEngine(makeCpu, *maxCycle, int64(*fps), *speed, audioContext)
     if err != nil {
         log.Printf("Error: %v", err)
         return
