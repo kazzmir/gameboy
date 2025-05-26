@@ -207,7 +207,7 @@ func (ppu *PPU) ShowWindow() bool {
 
 func (ppu *PPU) WindowTileMap() uint16 {
     // bit 6
-    bit := (ppu.LCDControl & 0b100_000) >> 5
+    bit := (ppu.LCDControl & 0b100_0000) >> 6
     if bit == 0 {
         return 0x9800 - 0x8000 // 0x9800
     } else {
@@ -320,11 +320,17 @@ func (ppu *PPU) Run(ppuCycles uint64, system System) {
                         ppu.Screen[ppu.LCDY][x] = pixelColor
                     }
 
-                    if ppu.ShowWindow() {
+                    if ppu.ShowWindow() && ppu.LCDY >= ppu.WindowY && x >= uint16(ppu.WindowX) - 7 {
                         baseAddress := ppu.WindowTileMap()
 
-                        var backgroundX uint16 = (uint16(ppu.WindowX - 7) + x/8) % 256
-                        var backgroundY uint16 = (uint16(ppu.WindowY) + uint16(ppu.LCDY)/8) % 256
+                        offsetX := x - uint16(ppu.WindowX) + 7
+
+                        var backgroundX uint16 = uint16(offsetX/8) % 256
+
+                        offsetY := ppu.LCDY - ppu.WindowY
+
+                        var backgroundY uint16 = uint16(offsetY/8) % 256
+                        // (uint16(ppu.LCDY - ppu.WindowY - 7) + uint16(ppu.LCDY)/8) % 256
 
                         // tileIndex := ppu.VideoRam[tileMap1Address + uint16(ppu.LCDY/8) * 32 + uint16(x/8)]
                         tileAddress := (backgroundY * 32 + backgroundX) % 0x400
@@ -349,7 +355,7 @@ func (ppu *PPU) Run(ppuCycles uint64, system System) {
                                 }
                         }
 
-                        yValue := uint16(ppu.LCDY) % 8
+                        yValue := uint16(ppu.LCDY - ppu.WindowY) % 8
 
                         lowByte := ppu.VideoRam[vramBase + vramIndex + yValue * 2]
                         highByte := ppu.VideoRam[vramBase + vramIndex + yValue * 2 + 1]
