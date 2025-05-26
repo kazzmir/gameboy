@@ -227,12 +227,12 @@ func main(){
     log.Printf("Gameboy file '%v'", gameboyFile.GetTitle())
     log.Printf("Rom size: %v", gameboyFile.GetRomSize())
     log.Printf("CGB Flag: %v", gameboyFile.GetCGBFlag())
-    log.Printf("Cartidge type: %v", gameboyFile.GetCartridgeType())
+    log.Printf("Cartidge type: 0x%x", gameboyFile.GetCartridgeType())
 
     makeCpu := func() (*core.CPU, error) {
         mbc, err := core.MakeMBC(gameboyFile.GetCartridgeType(), gameboyFile.GetRom())
         if err != nil {
-            return nil, fmt.Errorf("unhandled cartridge type %v: %v", gameboyFile.GetCartridgeType(), err)
+            return nil, fmt.Errorf("unhandled cartridge type 0x%x: %v", gameboyFile.GetCartridgeType(), err)
         }
 
         cpu := core.MakeCPU(mbc)

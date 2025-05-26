@@ -221,7 +221,7 @@ func MakeMBC(mbcType uint8, rom []uint8) (MBC, error) {
                 // FIXME: not all cartidges have all 32k
                 ram: make([]uint8, 0x8000),
             }, nil
-        case 3:
+        case 3, 0x13:
             return &MBC3{
                 rom: rom,
                 ram: make([]uint8, 0x2000 * 8), // 8 banks of 8k each
