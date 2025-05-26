@@ -119,23 +119,23 @@ type CPU struct {
     Stopped bool
     Halted bool
 
+    Rom []uint8
     Ram []uint8
 
     HighRam []uint8
 
     PPU *PPU
-    MBC MBC
 
     Debug bool
     Error bool
 }
 
-func MakeCPU(mbc MBC) *CPU {
+func MakeCPU(rom []uint8) *CPU {
     return &CPU{
+        Rom: rom,
         Ram: make([]uint8, 0x2000),
         HighRam: make([]uint8, 0xfffe - 0xff80 + 1),
         PPU: MakePPU(),
-        MBC: mbc,
     }
 }
 
@@ -188,7 +188,7 @@ func (cpu *CPU) InitializeDMG() {
     cpu.StoreMemory(IOLCDY, 0x00)
     cpu.StoreMemory(IOLCDYCompare, 0x00)
     cpu.StoreMemory(IOOAM_DMA_Transfer, 0xff)
-    cpu.StoreMemory(IOPalette, 0xfc)
+    cpu.StoreMemory(0xff47, 0xfc)
     cpu.StoreMemory(IOWindowY, 0x00)
     cpu.StoreMemory(IOWindowX, 0x00)
     cpu.StoreMemory(IOInterruptEnable, 0x00)
@@ -659,17 +659,12 @@ const IOOAM_DMA_Transfer = 0xff46
 func (cpu *CPU) StoreMemory(address uint16, value uint8) {
     switch {
         case address < 0x8000:
-            cpu.MBC.Write(address, value)
-            /*
             // normally this would be writing to an MBC controller to change the bank
             if address == 0x2000 {
                 // ignore
             } else if cpu.Error {
                 log.Printf("Attempted to write to ROM at address 0x%x", address)
             }
-            */
-        case address >= 0xa000 && address < 0xc000:
-            cpu.MBC.Write(address, value)
         case address >= VRamStart && address < VRamEnd:
             // log.Printf("Write to vram 0x%x = 0x%x", address, value)
             cpu.PPU.WriteVRam(address - VRamStart, value)
@@ -809,8 +804,7 @@ func (cpu *CPU) LoadMemory8(address uint16) uint8 {
     // log.Printf("Load memory at address 0x%x", address)
 
     switch {
-        case address < 0x8000: return cpu.MBC.Read(address)
-        case address >= 0xa000 && address < 0xc000: return cpu.MBC.Read(address)
+        case address < 0x8000: return cpu.Rom[address]
         case address >= VRamStart && address < VRamEnd:
             return cpu.PPU.LoadVRam(address - VRamStart)
         case address >= WRamStart && address < WRamEnd:
@@ -827,24 +821,11 @@ func (cpu *CPU) LoadMemory8(address uint16) uint8 {
             return cpu.InterruptEnable
         case address == IOInterrupt:
             return cpu.InterruptFlag
-        case address == IOWindowY:
-            return cpu.PPU.WindowY
-        case address == IOWindowX:
-            return cpu.PPU.WindowX
         case address == IOTimerDivider:
             // log.Printf("read io timer divider: 0x%x", cpu.TimerDivider)
             return uint8(cpu.TimerDivider / 256)
         case address == IOJoypad:
             return cpu.Joypad.GetValue()
-        case address == IOSoundChannel3DAC:
-            // FIXME: need apu
-            return 0
-        case address == IOSoundPanning:
-            // FIXME: need apu
-            return 0
-        case address == IOSoundOnOff:
-            // FIXME: need apu
-            return 0
         case address == IOLCDY:
             return cpu.PPU.LCDY
     }
@@ -867,7 +848,7 @@ func (cpu *CPU) RunTimer(cycles uint64) {
                 case 3: cpu.TimerRate = 256
             }
 
-            // log.Printf("timer is now %v", cpu.Timer)
+            log.Printf("timer is now %v", cpu.Timer)
             cpu.Timer += 1
             if cpu.Timer == 0 {
                 cpu.InterruptFlag |= 0b00000100
@@ -1128,7 +1109,7 @@ func (cpu *CPU) doXorA(value uint8) {
 func (cpu *CPU) Execute(instruction Instruction) uint64 {
     oldCycles := cpu.Cycles
     if cpu.Debug {
-        log.Printf("cycle=%v pc=0x%x stack=0x%x bc=0x%x hl=0x%x executing instruction: %+v", cpu.Cycles, cpu.PC, cpu.SP, cpu.BC, cpu.HL, instruction)
+        log.Printf("cycle=%v pc=0x%x stack=0x%x executing instruction: %+v", cpu.Cycles, cpu.PC, cpu.SP, instruction)
     }
     switch instruction.Opcode {
         case Nop:
@@ -2282,7 +2263,6 @@ func (cpu *CPU) Execute(instruction Instruction) uint64 {
 
         default:
             log.Printf("Execute error: unknown opcode %v", instruction.Opcode)
-            cpu.Cycles += 1
     }
 
     return cpu.Cycles - oldCycles
