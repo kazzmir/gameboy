@@ -55,6 +55,16 @@ type Sprite struct {
     Attributes uint8
 }
 
+func (sprite *Sprite) XFlipped() bool {
+    // bit 5
+    return (sprite.Attributes & 0b100000) != 0
+}
+
+func (sprite *Sprite) YFlipped() bool {
+    // bit 6
+    return (sprite.Attributes & 0b1000000) != 0
+}
+
 // returns the obj palette number, 0 or 1
 func (sprite *Sprite) Palette() uint8 {
     // bit 4 of attributes
@@ -148,6 +158,11 @@ func (ppu *PPU) SetLCDStatus(value uint8) {
     ppu.LCDStatus = (ppu.LCDStatus & 0b11111100) | (value & 0b11)
 }
 
+func (ppu *PPU) GetBackgroundEnabled() bool {
+    // bit 0 of lcd control
+    return ppu.LCDControl & 0b1 == 1
+}
+
 func (ppu *PPU) GetBackgroundTileMode() uint8 {
     // bit 5 of lcd control
     return (ppu.LCDControl & 0b10000) >> 4
@@ -235,7 +250,7 @@ func (ppu *PPU) Run(ppuCycles uint64, system System) {
                         size = 16
                     }
 
-                    {
+                    if ppu.GetBackgroundEnabled() {
                         // get background tile index
                         tileMap1Address := ppu.BackgroundTileMapAddress()
 
@@ -261,6 +276,9 @@ func (ppu *PPU) Run(ppuCycles uint64, system System) {
                             // 0-127: 0x8000
                             // 128-255: 0x8800
                             case 1: vramBase = 0
+
+                            // 0-127: 0x9000
+                            // 128-255: 0x8800
                             case 0:
                                 if tileIndex < 128 {
                                     vramBase = 0x9000 - 0x8000
@@ -291,7 +309,7 @@ func (ppu *PPU) Run(ppuCycles uint64, system System) {
                             // FIXME: handle size
                             vramIndex := uint16(sprite.TileIndex)*16
 
-                            yValue := uint16(ppu.LCDY) % 8
+                            yValue := uint16(ppu.LCDY) % uint16(size)
 
                             lowByte := ppu.VideoRam[vramIndex + yValue * 2]
                             highByte := ppu.VideoRam[vramIndex + yValue * 2 + 1]
@@ -299,6 +317,9 @@ func (ppu *PPU) Run(ppuCycles uint64, system System) {
 
                             // FIXME: what about size 16?
                             bit := uint8(7 - (int(x) - spriteX))
+                            if sprite.XFlipped() {
+                                bit = 7 - bit
+                            }
                             paletteColor := bitN(lowByte, bit) | (bitN(highByte, bit) << 1)
 
                             if paletteColor != 0 {
