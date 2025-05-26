@@ -148,6 +148,11 @@ func (ppu *PPU) SetLCDStatus(value uint8) {
     ppu.LCDStatus = (ppu.LCDStatus & 0b11111100) | (value & 0b11)
 }
 
+func (ppu *PPU) GetBackgroundTileMode() uint8 {
+    // bit 5 of lcd control
+    return (ppu.LCDControl & 0b10000) >> 4
+}
+
 // lower 2 bits of LCDStatus
 func (ppu *PPU) GetPPUMode() uint8 {
     return ppu.LCDStatus & 0b11
@@ -245,10 +250,30 @@ func (ppu *PPU) Run(ppuCycles uint64, system System) {
 
                         vramIndex := uint16(tileIndex)*16
 
+                        /*
+                        if backgroundX == 7 && backgroundY == 2 {
+                            log.Printf("%v,%v:= tile=0x%x address=0x%x mode=%v", backgroundX, backgroundY, tileIndex, vramIndex, ppu.GetBackgroundTileMode())
+                        }
+                        */
+
+                        vramBase := uint16(0)
+                        switch ppu.GetBackgroundTileMode() {
+                            // 0-127: 0x8000
+                            // 128-255: 0x8800
+                            case 1: vramBase = 0
+                            case 0:
+                                if tileIndex < 128 {
+                                    vramBase = 0x9000 - 0x8000
+                                } else {
+                                    vramBase = 0x8800 - 0x8000
+                                    vramIndex = uint16(tileIndex - 128) * 16
+                                }
+                        }
+
                         yValue := uint16(ppu.LCDY) % 8
 
-                        lowByte := ppu.VideoRam[vramIndex + yValue * 2]
-                        highByte := ppu.VideoRam[vramIndex + yValue * 2 + 1]
+                        lowByte := ppu.VideoRam[vramBase + vramIndex + yValue * 2]
+                        highByte := ppu.VideoRam[vramBase + vramIndex + yValue * 2 + 1]
                         bit := uint8(7 - (x & 7))
                         paletteColor := bitN(lowByte, bit) | (bitN(highByte, bit) << 1)
 
