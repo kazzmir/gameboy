@@ -252,7 +252,7 @@ func (ppu *PPU) Run(ppuCycles uint64, system System) {
 
                     if ppu.GetBackgroundEnabled() {
                         // get background tile index
-                        tileMap1Address := ppu.BackgroundTileMapAddress()
+                        tileMap1AddressBase := ppu.BackgroundTileMapAddress()
 
                         // each tile map is 32x32, where each tile is 8x8 so a total of 256x256 pixels
                         // to find the pixel value at position x,y we compute the tile index as y/8*32+x/8
@@ -261,7 +261,8 @@ func (ppu *PPU) Run(ppuCycles uint64, system System) {
                         var backgroundY uint16 = (uint16(ppu.ViewPortY) + uint16(ppu.LCDY)/8) % 256
 
                         // tileIndex := ppu.VideoRam[tileMap1Address + uint16(ppu.LCDY/8) * 32 + uint16(x/8)]
-                        tileIndex := ppu.VideoRam[tileMap1Address + backgroundY * 32 + backgroundX]
+                        tileAddress := tileMap1AddressBase + backgroundY * 32 + backgroundX
+                        tileIndex := ppu.VideoRam[tileAddress % 0x2000]
 
                         vramIndex := uint16(tileIndex)*16
 
@@ -306,20 +307,26 @@ func (ppu *PPU) Run(ppuCycles uint64, system System) {
                         // spriteY := int(sprite.Y) - 16
 
                         if int(x) >= spriteX && int(x) < spriteX+int(size) {
-                            // FIXME: handle size
-                            vramIndex := uint16(sprite.TileIndex)*16
-
                             yValue := uint16(ppu.LCDY) % uint16(size)
+
+                            vramIndex := uint16(sprite.TileIndex)*16
+                            if ppu.LargeSpriteMode() {
+                                if yValue < 8 {
+                                    vramIndex = uint16(sprite.TileIndex & (^uint8(0b1))) * 16
+                                } else {
+                                    vramIndex = uint16(sprite.TileIndex | 1) * 16
+                                }
+                            }
 
                             lowByte := ppu.VideoRam[vramIndex + yValue * 2]
                             highByte := ppu.VideoRam[vramIndex + yValue * 2 + 1]
                             // bit := uint8(7 - (x & 7))
 
-                            // FIXME: what about size 16?
                             bit := uint8(7 - (int(x) - spriteX))
                             if sprite.XFlipped() {
                                 bit = 7 - bit
                             }
+
                             paletteColor := bitN(lowByte, bit) | (bitN(highByte, bit) << 1)
 
                             if paletteColor != 0 {
