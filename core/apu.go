@@ -5,6 +5,8 @@ type Pulse struct {
     PanLeft bool
     PanRight bool
 
+    LengthEnable bool
+
     Period uint16
 
     PeriodHigh uint16
@@ -15,6 +17,16 @@ type Pulse struct {
     Step uint8
 
     cycles uint64
+}
+
+func (pulse *Pulse) Trigger() {
+    pulse.Enabled = true
+    pulse.Period = (pulse.PeriodHigh << 8) | pulse.PeriodLow
+    // FIXME:
+    //   expire length timer
+    //   envelope timer is reset
+    //   volume is reset to channel volume
+    //   a bunch of sweep stuff happens
 }
 
 func (pulse *Pulse) SetSweep(pace uint8, direction uint8, step uint8) {
@@ -76,6 +88,9 @@ type APU struct {
     Wave Wave
     Noise Noise
     MasterEnabled bool
+
+    DivCounter uint16
+    DivTicks uint16
 }
 
 func MakeAPU() *APU {
@@ -102,7 +117,17 @@ func (apu *APU) SetPulse1Sweep(value uint8) {
 }
 
 func (apu *APU) SetPulse1PeriodHigh(value uint8) {
-    apu.Pulse1.SetPeriodHigh(value)
+    period := value & 0b111
+    apu.Pulse1.SetPeriodHigh(period)
+
+    trigger := value & 0b1_0000000 != 0
+    lengthEnable := value & 0b1_000000 != 0
+
+    if trigger {
+        apu.Pulse1.Trigger()
+    }
+
+    apu.Pulse1.LengthEnable = lengthEnable
 }
 
 func (apu *APU) SetPulse1PeriodLow(value uint8) {
@@ -192,5 +217,23 @@ func (apu *APU) Run(cycles uint64) {
     for cycles > 0 {
         cycles -= 1
         apu.Pulse1.Run()
+
+        apu.DivCounter += 1
+        if apu.DivCounter >= 512 {
+            apu.DivCounter -= 512
+            apu.DivTicks += 1
+
+            if apu.DivTicks % 8 == 0 {
+                // FIXME: envelope sweep
+            }
+
+            if apu.DivTicks % 2 == 0 {
+                // FIXME: sound length
+            }
+
+            if apu.DivTicks % 4 == 0 {
+                // FIXME: channel1 frequency sweep
+            }
+        }
     }
 }
