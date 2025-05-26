@@ -55,6 +55,7 @@ type Sprite struct {
     Attributes uint8
 }
 
+<<<<<<< HEAD
 func (sprite *Sprite) XFlipped() bool {
     // bit 5
     return (sprite.Attributes & 0b100000) != 0
@@ -65,6 +66,8 @@ func (sprite *Sprite) YFlipped() bool {
     return (sprite.Attributes & 0b1000000) != 0
 }
 
+=======
+>>>>>>> master
 // returns the obj palette number, 0 or 1
 func (sprite *Sprite) Palette() uint8 {
     // bit 4 of attributes
@@ -195,6 +198,7 @@ func (ppu *PPU) GetPalette(palette uint8, colorIndex uint8) uint8 {
     return (palette >> (colorIndex * 2)) & 0b11
 }
 
+<<<<<<< HEAD
 func (ppu *PPU) Disabled() bool {
     // bit 7 of LCDControl
     return (ppu.LCDControl & 0x80) == 0
@@ -215,6 +219,8 @@ func (ppu *PPU) WindowTileMap() uint16 {
     }
 }
 
+=======
+>>>>>>> master
 func (ppu *PPU) Run(ppuCycles uint64, system System) {
     for range ppuCycles {
         if ppu.LCDStatus & 0b100000 != 0 {
@@ -291,6 +297,7 @@ func (ppu *PPU) Run(ppuCycles uint64, system System) {
 
                         vramIndex := uint16(tileIndex)*16
 
+<<<<<<< HEAD
                         vramBase := uint16(0)
                         switch ppu.GetBackgroundTileMode() {
                             // 0-127: 0x8000
@@ -308,6 +315,8 @@ func (ppu *PPU) Run(ppuCycles uint64, system System) {
                                 }
                         }
 
+=======
+>>>>>>> master
                         yValue := uint16(ppu.LCDY) % 8
 
                         lowByte := ppu.VideoRam[vramBase + vramIndex + yValue * 2]
@@ -338,6 +347,7 @@ func (ppu *PPU) Run(ppuCycles uint64, system System) {
                             // 128-255: 0x8800
                             case 1: vramBase = 0
 
+<<<<<<< HEAD
                             // 0-127: 0x9000
                             // 128-255: 0x8800
                             case 0:
