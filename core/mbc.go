@@ -123,9 +123,17 @@ func (mbc1 *MBC1) Write(address uint16, value uint8) {
 }
 
 type MBC3 struct {
+    rom []uint8
 }
 
 func (mbc3 *MBC3) Read(address uint16) uint8 {
+    switch {
+        case address < 0x4000:
+            return mbc3.rom[address]
+    }
+
+    log.Printf("Warning: mbc3: read from unsupported address 0x%x", address)
+
     return 0
 }
 
@@ -149,6 +157,7 @@ func MakeMBC(mbcType uint8, rom []uint8) (MBC, error) {
             }, nil
         case 3:
             return &MBC3{
+                rom: rom,
             }, nil
         default:
             return nil, fmt.Errorf("Unknown MBC type")
