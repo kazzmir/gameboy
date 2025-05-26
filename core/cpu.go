@@ -124,6 +124,7 @@ type CPU struct {
     HighRam []uint8
 
     PPU *PPU
+    APU *APU
     MBC MBC
 
     Debug bool
@@ -135,6 +136,7 @@ func MakeCPU(mbc MBC) *CPU {
         Ram: make([]uint8, 0x2000),
         HighRam: make([]uint8, 0xfffe - 0xff80 + 1),
         PPU: MakePPU(),
+        APU: MakeAPU(),
         MBC: mbc,
     }
 }
@@ -174,9 +176,9 @@ func (cpu *CPU) InitializeDMG() {
     cpu.StoreMemory(IOSoundChannel3Volume, 0x9f)
     cpu.StoreMemory(IOSoundChannel3PeriodLow, 0xff)
     cpu.StoreMemory(IOSoundChannel3PeriodHigh, 0xbf)
-    cpu.StoreMemory(0xff20, 0xff)
+    cpu.StoreMemory(IOSoundChannel4Length, 0xff)
     cpu.StoreMemory(IOSoundChannel4Volume, 0x00)
-    cpu.StoreMemory(0xff22, 0x00)
+    cpu.StoreMemory(IOSoundChannel4Frequency, 0x00)
     cpu.StoreMemory(IOSoundChannel4Control, 0xbf)
     cpu.StoreMemory(IOMasterVolume, 0x77)
     cpu.StoreMemory(IOSoundPanning, 0xf3)
