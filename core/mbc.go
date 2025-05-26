@@ -122,8 +122,19 @@ func (mbc1 *MBC1) Write(address uint16, value uint8) {
     }
 }
 
+type MBC3 struct {
+}
+
+func (mbc3 *MBC3) Read(address uint16) uint8 {
+    return 0
+}
+
+func (mbc3 *MBC3) Write(address uint16, value uint8) {
+}
+
 var _ MBC = &MBC0{}
 var _ MBC = &MBC1{}
+var _ MBC = &MBC3{}
 
 func MakeMBC(mbcType uint8, rom []uint8) (MBC, error) {
     switch mbcType {
@@ -135,6 +146,9 @@ func MakeMBC(mbcType uint8, rom []uint8) (MBC, error) {
                 romBank: 1,
                 // FIXME: not all cartidges have all 32k
                 ram: make([]uint8, 0x8000),
+            }, nil
+        case 3:
+            return &MBC3{
             }, nil
         default:
             return nil, fmt.Errorf("Unknown MBC type")
