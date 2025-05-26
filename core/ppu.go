@@ -315,7 +315,7 @@ func (ppu *PPU) Run(ppuCycles uint64, system System) {
                                 }
                         }
 
-                        yValue := uint16(ppu.LCDY) % 8
+                        yValue := uint16(offsetY) % 8
 
                         lowByte := ppu.VideoRam[vramBase + vramIndex + yValue * 2]
                         highByte := ppu.VideoRam[vramBase + vramIndex + yValue * 2 + 1]
@@ -366,7 +366,7 @@ func (ppu *PPU) Run(ppuCycles uint64, system System) {
 
                         lowByte := ppu.VideoRam[vramBase + vramIndex + yValue * 2]
                         highByte := ppu.VideoRam[vramBase + vramIndex + yValue * 2 + 1]
-                        bit := uint8(7 - (x & 7))
+                        bit := uint8(7 - (offsetX & 7))
                         paletteColor := bitN(lowByte, bit) | (bitN(highByte, bit) << 1)
 
                         pixelColor := dmgPalette[ppu.GetPalette(ppu.Palette, paletteColor)]
