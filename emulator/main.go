@@ -227,7 +227,7 @@ func main(){
     makeCpu := func() (*core.CPU, error) {
         mbc, err := core.MakeMBC(gameboyFile.GetCartridgeType(), gameboyFile.GetRom())
         if err != nil {
-            return nil, fmt.Errorf("Error: unhandled cartridge type %v: %v", gameboyFile.GetCartridgeType(), err)
+            return nil, fmt.Errorf("unhandled cartridge type %v: %v", gameboyFile.GetCartridgeType(), err)
         }
 
         cpu := core.MakeCPU(mbc)
