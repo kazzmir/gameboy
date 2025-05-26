@@ -735,7 +735,7 @@ func (cpu *CPU) StoreMemory(address uint16, value uint8) {
         case address == IOMasterVolume:
             // FIXME: implement with APU
         case address == IOSoundPanning:
-            // FIXME: implement with APU
+            cpu.APU.SetPanning(value)
         case address == IOSoundOnOff:
             cpu.APU.SetMasterEnabled(value & 0b1000_0000 > 0)
         case address == IOSerialTransferData:
@@ -857,8 +857,7 @@ func (cpu *CPU) LoadMemory8(address uint16) uint8 {
             // FIXME: need apu
             return 0
         case address == IOSoundPanning:
-            // FIXME: need apu
-            return 0
+            return cpu.APU.ReadSoundPanning()
         case address == IOSoundOnOff:
             return cpu.APU.ReadMasterControl()
         case address == IOLCDY:
