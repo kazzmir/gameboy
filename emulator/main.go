@@ -6,6 +6,7 @@ import (
     "log"
     "time"
     "flag"
+    "errors"
 
     "github.com/kazzmir/gameboy/core"
 
@@ -13,7 +14,10 @@ import (
     "github.com/hajimehoshi/ebiten/v2/inpututil"
 )
 
+var RestartError = fmt.Errorf("Restart")
+
 type Engine struct {
+    MakeCpu func () (*core.CPU, error)
     Cpu *core.CPU
     cpuBudget int64
     ticker *time.Ticker
@@ -24,17 +28,23 @@ type Engine struct {
     speed float64
 }
 
-func MakeEngine(cpu *core.CPU, maxCycle int64, rate int64, speed float64) *Engine {
+func MakeEngine(makeCpu func () (*core.CPU, error), maxCycle int64, rate int64, speed float64) (*Engine, error) {
     ticker := time.NewTicker(time.Second / time.Duration(rate))
 
+    cpu, err := makeCpu()
+    if err != nil {
+        return nil, err
+    }
+
     return &Engine{
+        MakeCpu: makeCpu,
         Cpu: cpu,
         cpuBudget: 0,
         ticker: ticker,
         rate: rate,
         maxCycle: maxCycle,
         speed: speed,
-    }
+    }, nil
 }
 
 // run the emulator for some number of cpu cycles
@@ -57,6 +67,9 @@ func (engine *Engine) runEmulator(cycles int64) error {
                 if engine.Cpu.Joypad.ReadDpad {
                     engine.Cpu.EnableJoypad()
                 }
+
+            case ebiten.KeyR:
+                return RestartError
         }
     }
 
@@ -123,6 +136,16 @@ func (engine *Engine) Update() error {
 
     err := engine.runEmulator(core.CPUSpeed / engine.rate)
 
+    if errors.Is(err, RestartError) {
+        cpu, err := engine.MakeCpu()
+        if err != nil {
+            return err
+        }
+        engine.Cpu = cpu
+
+        return nil
+    }
+
     return err
 }
 
@@ -188,30 +211,35 @@ func main(){
     log.Printf("CGB Flag: %v", gameboyFile.GetCGBFlag())
     log.Printf("Cartidge type: %v", gameboyFile.GetCartridgeType())
 
-    mbc, err := core.MakeMBC(gameboyFile.GetCartridgeType(), gameboyFile.GetRom())
-    if err != nil {
-        log.Printf("Error: unhandled cartridge type %v: %v", gameboyFile.GetCartridgeType(), err)
-        return
-    }
+    makeCpu := func() (*core.CPU, error) {
+        mbc, err := core.MakeMBC(gameboyFile.GetCartridgeType(), gameboyFile.GetRom())
+        if err != nil {
+            return nil, fmt.Errorf("Error: unhandled cartridge type %v: %v", gameboyFile.GetCartridgeType(), err)
+        }
 
-    cpu := core.MakeCPU(mbc)
-    cpu.InitializeDMG()
-    cpu.Debug = *cpuDebug
-    cpu.Error = true
-    cpu.PPU.Debug = *ppuDebug
+        cpu := core.MakeCPU(mbc)
+        cpu.InitializeDMG()
+        cpu.Debug = *cpuDebug
+        cpu.Error = true
+        cpu.PPU.Debug = *ppuDebug
+        return cpu, nil
+    }
     // cpu.PC = 0x100
 
     if *maxCycle > 0 {
         log.Printf("Max cycles: %v, %0.3f seconds", *maxCycle, float64(*maxCycle) / (float64(core.CPUSpeed) * (*speed)))
     }
 
-    ebiten.SetTPS(*fps)
+    engine, err := MakeEngine(makeCpu, *maxCycle, int64(*fps), *speed)
+    if err != nil {
+        log.Printf("Error: %v", err)
+        return
+    }
 
+    ebiten.SetTPS(*fps)
     ebiten.SetWindowSize(160*4, 144*4)
     ebiten.SetWindowTitle("Gameboy Emulator")
     ebiten.SetWindowResizingMode(ebiten.WindowResizingModeEnabled)
-
-    engine := MakeEngine(cpu, *maxCycle, int64(*fps), *speed)
 
     err = ebiten.RunGame(engine)
     if err != nil {
