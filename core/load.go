@@ -21,7 +21,15 @@ func (gameboy *GameboyFile) GetTitle() string {
         return ""
     }
 
-    return string(gameboy.Data[start:end])
+    last := start
+    for last < end {
+        if gameboy.Data[last] == 0 {
+            break
+        }
+        last += 1
+    }
+
+    return string(gameboy.Data[start:last])
 }
 
 func (gameboy *GameboyFile) GetManufacturerCode() []byte {
