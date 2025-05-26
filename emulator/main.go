@@ -7,11 +7,14 @@ import (
     "time"
     "flag"
     "errors"
+    "image/color"
 
     "github.com/kazzmir/gameboy/core"
 
     "github.com/hajimehoshi/ebiten/v2"
     "github.com/hajimehoshi/ebiten/v2/inpututil"
+    "github.com/hajimehoshi/ebiten/v2/vector"
+    "github.com/hajimehoshi/ebiten/v2/ebitenutil"
 )
 
 var RestartError = fmt.Errorf("Restart")
@@ -26,6 +29,7 @@ type Engine struct {
     needDraw bool
     maxCycle int64
     speed float64
+    paused bool
 }
 
 func MakeEngine(makeCpu func () (*core.CPU, error), maxCycle int64, rate int64, speed float64) (*Engine, error) {
@@ -51,7 +55,9 @@ func MakeEngine(makeCpu func () (*core.CPU, error), maxCycle int64, rate int64, 
 func (engine *Engine) runEmulator(cycles int64) error {
     // engine.cpuBudget += core.CPUSpeed / engine.rate
 
-    engine.cpuBudget += int64(float64(cycles) * engine.speed) / 4
+    if !engine.paused {
+        engine.cpuBudget += int64(float64(cycles) * engine.speed) / 4
+    }
     // log.Printf("cpu budget: %v = %v/s. cpu speed = %v. diff = %v", engine.cpuBudget, engine.cpuBudget * engine.rate, core.CPUSpeed, engine.cpuBudget * engine.rate - core.CPUSpeed)
 
     engine.Cpu.Joypad.Reset()
@@ -70,6 +76,8 @@ func (engine *Engine) runEmulator(cycles int64) error {
 
             case ebiten.KeyR:
                 return RestartError
+            case ebiten.KeyP:
+                engine.paused = !engine.paused
         }
     }
 
@@ -172,6 +180,11 @@ func (engine *Engine) Draw(screen *ebiten.Image) {
     }
 
     screen.WritePixels(engine.pixels)
+
+    if engine.paused {
+        vector.DrawFilledRect(screen, 0, 0, float32(screen.Bounds().Dx()), float32(screen.Bounds().Dy()), color.RGBA{R: 0, G: 0, B: 0, A: 128}, true)
+        ebitenutil.DebugPrintAt(screen, "Paused\nPress P to resume", screen.Bounds().Dx()/2-45, screen.Bounds().Dy()/2-20)
+    }
 }
 
 func (engine *Engine) Layout(outsideWidth, outsideHeight int) (int, int) {
