@@ -55,6 +55,16 @@ type Sprite struct {
     Attributes uint8
 }
 
+func (sprite *Sprite) XFlipped() bool {
+    // bit 5
+    return (sprite.Attributes & 0b100000) != 0
+}
+
+func (sprite *Sprite) YFlipped() bool {
+    // bit 6
+    return (sprite.Attributes & 0b1000000) != 0
+}
+
 // returns the obj palette number, 0 or 1
 func (sprite *Sprite) Palette() uint8 {
     // bit 4 of attributes
@@ -148,6 +158,21 @@ func (ppu *PPU) SetLCDStatus(value uint8) {
     ppu.LCDStatus = (ppu.LCDStatus & 0b11111100) | (value & 0b11)
 }
 
+func (ppu *PPU) GetBackgroundEnabled() bool {
+    // bit 0 of lcd control
+    return ppu.LCDControl & 0b1 == 1
+}
+
+func (ppu *PPU) GetBackgroundTileMode() uint8 {
+    // bit 5 of lcd control
+    return (ppu.LCDControl & 0b10000) >> 4
+}
+
+func (ppu *PPU) ShowObjects() bool {
+    // bit 1 of lcd control
+    return (ppu.LCDControl & 0b10) != 0
+}
+
 // lower 2 bits of LCDStatus
 func (ppu *PPU) GetPPUMode() uint8 {
     return ppu.LCDStatus & 0b11
@@ -168,6 +193,26 @@ var dmgPalette = [4]color.RGBA{
 
 func (ppu *PPU) GetPalette(palette uint8, colorIndex uint8) uint8 {
     return (palette >> (colorIndex * 2)) & 0b11
+}
+
+func (ppu *PPU) Disabled() bool {
+    // bit 7 of LCDControl
+    return (ppu.LCDControl & 0x80) == 0
+}
+
+func (ppu *PPU) ShowWindow() bool {
+    // bit 5 of lcd control
+    return (ppu.LCDControl & 0x20) != 0
+}
+
+func (ppu *PPU) WindowTileMap() uint16 {
+    // bit 6
+    bit := (ppu.LCDControl & 0b100_000) >> 5
+    if bit == 0 {
+        return 0x9800 - 0x8000 // 0x9800
+    } else {
+        return 0x9c00 - 0x8000 // 0x9c00
+    }
 }
 
 func (ppu *PPU) Run(ppuCycles uint64, system System) {
@@ -219,7 +264,7 @@ func (ppu *PPU) Run(ppuCycles uint64, system System) {
             // draw pixels, mode 3. usually 172 dots, but could be less
             // after 172 dots, enter mode 0 horizontal blank
 
-            if ppu.Dot < 252 {
+            if ppu.Dot < 252 && !ppu.Disabled() {
                 ppu.SetLCDStatus(3)
                 x := ppu.Dot - 80
 
@@ -230,9 +275,9 @@ func (ppu *PPU) Run(ppuCycles uint64, system System) {
                         size = 16
                     }
 
-                    {
+                    if ppu.GetBackgroundEnabled() {
                         // get background tile index
-                        tileMap1Address := ppu.BackgroundTileMapAddress()
+                        tileMap1AddressBase := ppu.BackgroundTileMapAddress()
 
                         // each tile map is 32x32, where each tile is 8x8 so a total of 256x256 pixels
                         // to find the pixel value at position x,y we compute the tile index as y/8*32+x/8
@@ -241,14 +286,32 @@ func (ppu *PPU) Run(ppuCycles uint64, system System) {
                         var backgroundY uint16 = (uint16(ppu.ViewPortY) + uint16(ppu.LCDY)/8) % 256
 
                         // tileIndex := ppu.VideoRam[tileMap1Address + uint16(ppu.LCDY/8) * 32 + uint16(x/8)]
-                        tileIndex := ppu.VideoRam[tileMap1Address + backgroundY * 32 + backgroundX]
+                        tileAddress := backgroundY * 32 + backgroundX
+                        tileIndex := ppu.VideoRam[(tileMap1AddressBase + tileAddress) % 0x2000]
 
                         vramIndex := uint16(tileIndex)*16
 
+                        vramBase := uint16(0)
+                        switch ppu.GetBackgroundTileMode() {
+                            // 0-127: 0x8000
+                            // 128-255: 0x8800
+                            case 1: vramBase = 0
+
+                            // 0-127: 0x9000
+                            // 128-255: 0x8800
+                            case 0:
+                                if tileIndex < 128 {
+                                    vramBase = 0x9000 - 0x8000
+                                } else {
+                                    vramBase = 0x8800 - 0x8000
+                                    vramIndex = uint16(tileIndex - 128) * 16
+                                }
+                        }
+
                         yValue := uint16(ppu.LCDY) % 8
 
-                        lowByte := ppu.VideoRam[vramIndex + yValue * 2]
-                        highByte := ppu.VideoRam[vramIndex + yValue * 2 + 1]
+                        lowByte := ppu.VideoRam[vramBase + vramIndex + yValue * 2]
+                        highByte := ppu.VideoRam[vramBase + vramIndex + yValue * 2 + 1]
                         bit := uint8(7 - (x & 7))
                         paletteColor := bitN(lowByte, bit) | (bitN(highByte, bit) << 1)
 
@@ -257,33 +320,89 @@ func (ppu *PPU) Run(ppuCycles uint64, system System) {
                         ppu.Screen[ppu.LCDY][x] = pixelColor
                     }
 
-                    for _, spriteIndex := range ppu.LineSprites {
-                        sprite := &ppu.Sprites[spriteIndex]
-                        spriteX := int(sprite.X) - 8
-                        // spriteY := int(sprite.Y) - 16
+                    if ppu.ShowWindow() {
+                        baseAddress := ppu.WindowTileMap()
 
-                        if int(x) >= spriteX && int(x) < spriteX+int(size) {
-                            // FIXME: handle size
-                            vramIndex := uint16(sprite.TileIndex)*16
+                        var backgroundX uint16 = (uint16(ppu.WindowX - 7) + x/8) % 256
+                        var backgroundY uint16 = (uint16(ppu.WindowY) + uint16(ppu.LCDY)/8) % 256
 
-                            yValue := uint16(ppu.LCDY) % 8
+                        // tileIndex := ppu.VideoRam[tileMap1Address + uint16(ppu.LCDY/8) * 32 + uint16(x/8)]
+                        tileAddress := (backgroundY * 32 + backgroundX) % 0x400
+                        tileIndex := ppu.VideoRam[baseAddress + tileAddress]
 
-                            lowByte := ppu.VideoRam[vramIndex + yValue * 2]
-                            highByte := ppu.VideoRam[vramIndex + yValue * 2 + 1]
-                            // bit := uint8(7 - (x & 7))
+                        vramIndex := uint16(tileIndex)*16
 
-                            // FIXME: what about size 16?
-                            bit := uint8(7 - (int(x) - spriteX))
-                            paletteColor := bitN(lowByte, bit) | (bitN(highByte, bit) << 1)
+                        vramBase := uint16(0)
+                        switch ppu.GetBackgroundTileMode() {
+                            // 0-127: 0x8000
+                            // 128-255: 0x8800
+                            case 1: vramBase = 0
 
-                            if paletteColor != 0 {
-                                var pixelColor color.RGBA
-                                switch sprite.Palette() {
-                                    case 0: pixelColor = dmgPalette[ppu.GetPalette(ppu.ObjPalette0, paletteColor)]
-                                    case 1: pixelColor = dmgPalette[ppu.GetPalette(ppu.ObjPalette1, paletteColor)]
+                            // 0-127: 0x9000
+                            // 128-255: 0x8800
+                            case 0:
+                                if tileIndex < 128 {
+                                    vramBase = 0x9000 - 0x8000
+                                } else {
+                                    vramBase = 0x8800 - 0x8000
+                                    vramIndex = uint16(tileIndex - 128) * 16
+                                }
+                        }
+
+                        yValue := uint16(ppu.LCDY) % 8
+
+                        lowByte := ppu.VideoRam[vramBase + vramIndex + yValue * 2]
+                        highByte := ppu.VideoRam[vramBase + vramIndex + yValue * 2 + 1]
+                        bit := uint8(7 - (x & 7))
+                        paletteColor := bitN(lowByte, bit) | (bitN(highByte, bit) << 1)
+
+                        pixelColor := dmgPalette[ppu.GetPalette(ppu.Palette, paletteColor)]
+
+                        ppu.Screen[ppu.LCDY][x] = pixelColor
+                    }
+
+                    if ppu.ShowObjects() {
+                        for _, spriteIndex := range ppu.LineSprites {
+                            sprite := &ppu.Sprites[spriteIndex]
+                            spriteX := int(sprite.X) - 8
+                            // spriteY := int(sprite.Y) - 16
+
+                            if int(x) >= spriteX && int(x) < spriteX+int(size) {
+                                yValue := uint16(ppu.LCDY - sprite.Y - 16) % uint16(size)
+                                if sprite.YFlipped() {
+                                    yValue = uint16(size) - 1 - yValue
                                 }
 
-                                ppu.Screen[ppu.LCDY][x] = pixelColor
+                                vramIndex := uint16(sprite.TileIndex)*16
+                                if ppu.LargeSpriteMode() {
+                                    if yValue < 8 {
+                                        vramIndex = uint16(sprite.TileIndex & (^uint8(0b1))) * 16
+                                    } else {
+                                        vramIndex = uint16(sprite.TileIndex | 1) * 16
+                                        yValue -= 8
+                                    }
+                                }
+
+                                lowByte := ppu.VideoRam[vramIndex + yValue * 2]
+                                highByte := ppu.VideoRam[vramIndex + yValue * 2 + 1]
+                                // bit := uint8(7 - (x & 7))
+
+                                bit := uint8(7 - (int(x) - spriteX))
+                                if sprite.XFlipped() {
+                                    bit = 7 - bit
+                                }
+
+                                paletteColor := bitN(lowByte, bit) | (bitN(highByte, bit) << 1)
+
+                                if paletteColor != 0 {
+                                    var pixelColor color.RGBA
+                                    switch sprite.Palette() {
+                                        case 0: pixelColor = dmgPalette[ppu.GetPalette(ppu.ObjPalette0, paletteColor)]
+                                        case 1: pixelColor = dmgPalette[ppu.GetPalette(ppu.ObjPalette1, paletteColor)]
+                                    }
+
+                                    ppu.Screen[ppu.LCDY][x] = pixelColor
+                                }
                             }
                         }
                     }
