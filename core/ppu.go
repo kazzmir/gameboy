@@ -5,6 +5,10 @@ import (
     "image/color"
 )
 
+const ScreenWidth = 160
+const ScreenHeight = 144
+const ScreenYMax = 154
+
 type PPU struct {
     ViewPortX uint8
     ViewPortY uint8
@@ -33,15 +37,15 @@ type PPU struct {
 }
 
 func MakePPU() *PPU {
-    screen := make([][]color.RGBA, 144)
+    screen := make([][]color.RGBA, ScreenHeight)
     for i := range screen {
-        screen[i] = make([]color.RGBA, 160)
+        screen[i] = make([]color.RGBA, ScreenWidth)
     }
 
     return &PPU{
         Screen: screen,
         VideoRam: make([]uint8, 8192),
-        OAM: make([]uint8, 160),
+        OAM: make([]uint8, ScreenWidth),
         Sprites: make([]Sprite, 40),
         LineSprites: make([]int, 10),
         Draw: make(chan bool, 1),
@@ -234,7 +238,7 @@ func (ppu *PPU) Run(ppuCycles uint64, system System) {
         }
 
         ppu.Dot += 1
-        if ppu.LCDY < 144 && !ppu.Disabled() {
+        if ppu.LCDY < ScreenHeight && !ppu.Disabled() {
             if ppu.Dot < 80 {
                 ppu.SetLCDStatus(2)
 
@@ -273,7 +277,7 @@ func (ppu *PPU) Run(ppuCycles uint64, system System) {
                     ppu.SetLCDStatus(3)
                     x := ppu.Dot - 80
 
-                    if x < 160 && ppu.LCDY < 144 {
+                    if x < ScreenWidth && ppu.LCDY < ScreenHeight {
 
                         var size uint8 = 8
                         if ppu.LargeSpriteMode() {
@@ -451,7 +455,7 @@ func (ppu *PPU) Run(ppuCycles uint64, system System) {
             ppu.Dot = 0
             ppu.LCDY += 1
 
-            if ppu.LCDY == 144 {
+            if ppu.LCDY == ScreenHeight {
                 select {
                     case ppu.Draw <- true:
                     default:
@@ -460,7 +464,7 @@ func (ppu *PPU) Run(ppuCycles uint64, system System) {
                 ppu.SetLCDStatus(1) // enter vblank mode
             }
 
-            if ppu.LCDY >= 154 {
+            if ppu.LCDY >= ScreenYMax {
                 ppu.LCDY = 0
             }
         }

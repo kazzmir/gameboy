@@ -171,7 +171,7 @@ func (engine *Engine) Draw(screen *ebiten.Image) {
     for y := range len(virtualScreen) {
         for x := range len(virtualScreen[y]) {
             r, g, b, a := virtualScreen[y][x].RGBA()
-            index := (y*160 + x) * 4
+            index := (y*core.ScreenWidth + x) * 4
             engine.pixels[index+0] = uint8(r >> 8)
             engine.pixels[index+1] = uint8(g >> 8)
             engine.pixels[index+2] = uint8(b >> 8)
@@ -188,7 +188,7 @@ func (engine *Engine) Draw(screen *ebiten.Image) {
 }
 
 func (engine *Engine) Layout(outsideWidth, outsideHeight int) (int, int) {
-    return 160, 144
+    return core.ScreenWidth, core.ScreenHeight
 }
 
 func main(){
@@ -250,7 +250,7 @@ func main(){
     }
 
     ebiten.SetTPS(*fps)
-    ebiten.SetWindowSize(160*4, 144*4)
+    ebiten.SetWindowSize(core.ScreenWidth*4, core.ScreenHeight*4)
     ebiten.SetWindowTitle("Gameboy Emulator")
     ebiten.SetWindowResizingMode(ebiten.WindowResizingModeEnabled)
 
