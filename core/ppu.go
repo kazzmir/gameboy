@@ -282,8 +282,15 @@ func (ppu *PPU) Run(ppuCycles uint64, system System) {
                         // each tile map is 32x32, where each tile is 8x8 so a total of 256x256 pixels
                         // to find the pixel value at position x,y we compute the tile index as y/8*32+x/8
 
-                        var backgroundX uint16 = (uint16(ppu.ViewPortX) + x/8) % 256
-                        var backgroundY uint16 = (uint16(ppu.ViewPortY) + uint16(ppu.LCDY)/8) % 256
+                        offsetX := uint8(x) + ppu.ViewPortX
+
+                        // var backgroundX uint16 = (uint16(ppu.ViewPortX) + x/8) % 256
+                        var backgroundX uint16 = uint16(offsetX/8)
+
+                        offsetY := ppu.LCDY - ppu.ViewPortY
+
+                        // var backgroundY uint16 = (uint16(ppu.ViewPortY) + uint16(ppu.LCDY)/8) % 256
+                        var backgroundY uint16 = uint16(offsetY/8)
 
                         // tileIndex := ppu.VideoRam[tileMap1Address + uint16(ppu.LCDY/8) * 32 + uint16(x/8)]
                         tileAddress := backgroundY * 32 + backgroundX
@@ -312,7 +319,7 @@ func (ppu *PPU) Run(ppuCycles uint64, system System) {
 
                         lowByte := ppu.VideoRam[vramBase + vramIndex + yValue * 2]
                         highByte := ppu.VideoRam[vramBase + vramIndex + yValue * 2 + 1]
-                        bit := uint8(7 - (x & 7))
+                        bit := uint8(7 - (offsetX & 7))
                         paletteColor := bitN(lowByte, bit) | (bitN(highByte, bit) << 1)
 
                         pixelColor := dmgPalette[ppu.GetPalette(ppu.Palette, paletteColor)]
@@ -323,7 +330,7 @@ func (ppu *PPU) Run(ppuCycles uint64, system System) {
                     if ppu.ShowWindow() && ppu.LCDY >= ppu.WindowY && x >= uint16(ppu.WindowX) - 7 {
                         baseAddress := ppu.WindowTileMap()
 
-                        offsetX := x - uint16(ppu.WindowX) + 7
+                        offsetX := x - uint16(ppu.WindowX - 7)
 
                         var backgroundX uint16 = uint16(offsetX/8) % 256
 
