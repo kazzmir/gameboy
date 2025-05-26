@@ -1,3 +1,5 @@
+.PHONY: gameboy
+
 all: gameboy
 
 gameboy:
