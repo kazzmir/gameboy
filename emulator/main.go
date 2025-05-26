@@ -227,6 +227,7 @@ func main(){
     log.Printf("Gameboy file '%v'", gameboyFile.GetTitle())
     log.Printf("Rom size: %v", gameboyFile.GetRomSize())
     log.Printf("CGB Flag: %v", gameboyFile.GetCGBFlag())
+    log.Printf("SGB Flag: %v", gameboyFile.GetSGBFlag())
     log.Printf("Cartidge type: 0x%x", gameboyFile.GetCartridgeType())
 
     makeCpu := func() (*core.CPU, error) {
