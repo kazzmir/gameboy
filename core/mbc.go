@@ -124,12 +124,24 @@ func (mbc1 *MBC1) Write(address uint16, value uint8) {
 
 type MBC3 struct {
     rom []uint8
+    ramEnabled bool
+    ram []uint8
+    romBank uint8
 }
 
 func (mbc3 *MBC3) Read(address uint16) uint8 {
     switch {
         case address < 0x4000:
             return mbc3.rom[address]
+        case address >= 0x4000 && address < 0x8000:
+            address2 := (uint32(mbc3.romBank) << 14) | uint32(address & 0b11_1111_1111_1111)
+            if address2 >= uint32(len(mbc3.rom)) {
+                log.Printf("Attempted to read from ROM at address 0x%x", address)
+                return 0
+            }
+            // log.Printf("mbc1 read 0x4000 range address=0x%x, romBank=%d, ramBank=%d, address2=0x%x value=0x%x", address, mbc1.romBank, mbc1.ramBank, address2, mbc1.rom[address2])
+            return mbc3.rom[address2]
+
     }
 
     log.Printf("Warning: mbc3: read from unsupported address 0x%x", address)
@@ -138,6 +150,13 @@ func (mbc3 *MBC3) Read(address uint16) uint8 {
 }
 
 func (mbc3 *MBC3) Write(address uint16, value uint8) {
+    switch {
+        case address >= 0x2000 && address < 0x4000:
+            if value == 0 {
+                value = 1
+            }
+            mbc3.romBank = value & 0x7F
+    }
 }
 
 var _ MBC = &MBC0{}
@@ -158,6 +177,7 @@ func MakeMBC(mbcType uint8, rom []uint8) (MBC, error) {
         case 3:
             return &MBC3{
                 rom: rom,
+                ram: make([]uint8, 0x2000 * 8), // 8 banks of 8k each
             }, nil
         default:
             return nil, fmt.Errorf("Unknown MBC type")

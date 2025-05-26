@@ -838,6 +838,9 @@ func (cpu *CPU) LoadMemory8(address uint16) uint8 {
             return uint8(cpu.TimerDivider / 256)
         case address == IOJoypad:
             return cpu.Joypad.GetValue()
+        case address == IOMasterVolume:
+            // FIXME: need apu
+            return 0
         case address == IOSoundChannel3DAC:
             // FIXME: need apu
             return 0
