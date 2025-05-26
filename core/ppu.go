@@ -200,11 +200,22 @@ func (ppu *PPU) Disabled() bool {
     return (ppu.LCDControl & 0x80) == 0
 }
 
-func (ppu *PPU) Run(ppuCycles uint64, system System) {
-    if ppu.Disabled() {
-        return
-    }
+func (ppu *PPU) ShowWindow() bool {
+    // bit 5 of lcd control
+    return (ppu.LCDControl & 0x20) != 0
+}
 
+func (ppu *PPU) WindowTileMap() uint16 {
+    // bit 6
+    bit := (ppu.LCDControl & 0b100_000) >> 5
+    if bit == 0 {
+        return 0x9800 - 0x8000 // 0x9800
+    } else {
+        return 0x9c00 - 0x8000 // 0x9c00
+    }
+}
+
+func (ppu *PPU) Run(ppuCycles uint64, system System) {
     for range ppuCycles {
         if ppu.LCDStatus & 0b100000 != 0 {
             if ppu.LCDYCompare == ppu.LCDY {
@@ -253,7 +264,7 @@ func (ppu *PPU) Run(ppuCycles uint64, system System) {
             // draw pixels, mode 3. usually 172 dots, but could be less
             // after 172 dots, enter mode 0 horizontal blank
 
-            if ppu.Dot < 252 {
+            if ppu.Dot < 252 && !ppu.Disabled() {
                 ppu.SetLCDStatus(3)
                 x := ppu.Dot - 80
 
@@ -275,8 +286,49 @@ func (ppu *PPU) Run(ppuCycles uint64, system System) {
                         var backgroundY uint16 = (uint16(ppu.ViewPortY) + uint16(ppu.LCDY)/8) % 256
 
                         // tileIndex := ppu.VideoRam[tileMap1Address + uint16(ppu.LCDY/8) * 32 + uint16(x/8)]
-                        tileAddress := tileMap1AddressBase + backgroundY * 32 + backgroundX
-                        tileIndex := ppu.VideoRam[tileAddress % 0x2000]
+                        tileAddress := backgroundY * 32 + backgroundX
+                        tileIndex := ppu.VideoRam[(tileMap1AddressBase + tileAddress) % 0x2000]
+
+                        vramIndex := uint16(tileIndex)*16
+
+                        vramBase := uint16(0)
+                        switch ppu.GetBackgroundTileMode() {
+                            // 0-127: 0x8000
+                            // 128-255: 0x8800
+                            case 1: vramBase = 0
+
+                            // 0-127: 0x9000
+                            // 128-255: 0x8800
+                            case 0:
+                                if tileIndex < 128 {
+                                    vramBase = 0x9000 - 0x8000
+                                } else {
+                                    vramBase = 0x8800 - 0x8000
+                                    vramIndex = uint16(tileIndex - 128) * 16
+                                }
+                        }
+
+                        yValue := uint16(ppu.LCDY) % 8
+
+                        lowByte := ppu.VideoRam[vramBase + vramIndex + yValue * 2]
+                        highByte := ppu.VideoRam[vramBase + vramIndex + yValue * 2 + 1]
+                        bit := uint8(7 - (x & 7))
+                        paletteColor := bitN(lowByte, bit) | (bitN(highByte, bit) << 1)
+
+                        pixelColor := dmgPalette[ppu.GetPalette(ppu.Palette, paletteColor)]
+
+                        ppu.Screen[ppu.LCDY][x] = pixelColor
+                    }
+
+                    if ppu.ShowWindow() {
+                        baseAddress := ppu.WindowTileMap()
+
+                        var backgroundX uint16 = (uint16(ppu.WindowX - 7) + x/8) % 256
+                        var backgroundY uint16 = (uint16(ppu.WindowY) + uint16(ppu.LCDY)/8) % 256
+
+                        // tileIndex := ppu.VideoRam[tileMap1Address + uint16(ppu.LCDY/8) * 32 + uint16(x/8)]
+                        tileAddress := (backgroundY * 32 + backgroundX) % 0x400
+                        tileIndex := ppu.VideoRam[baseAddress + tileAddress]
 
                         vramIndex := uint16(tileIndex)*16
 
@@ -310,13 +362,13 @@ func (ppu *PPU) Run(ppuCycles uint64, system System) {
                     }
 
                     if ppu.ShowObjects() {
-                        for i, spriteIndex := range ppu.LineSprites {
+                        for _, spriteIndex := range ppu.LineSprites {
                             sprite := &ppu.Sprites[spriteIndex]
                             spriteX := int(sprite.X) - 8
                             // spriteY := int(sprite.Y) - 16
 
                             if int(x) >= spriteX && int(x) < spriteX+int(size) {
-                                yValue := uint16(ppu.LCDY) % uint16(size)
+                                yValue := uint16(ppu.LCDY - sprite.Y - 16) % uint16(size)
                                 if sprite.YFlipped() {
                                     yValue = uint16(size) - 1 - yValue
                                 }
@@ -330,12 +382,6 @@ func (ppu *PPU) Run(ppuCycles uint64, system System) {
                                         yValue -= 8
                                     }
                                 }
-
-                                /*
-                                if int(x) == spriteX && i == 0 {
-                                    log.Printf("sprite 0: x=%d, y=%d, tile=0x%x, attributes=0x%x, vramIndex=0x%x, yValue=%d", sprite.X, sprite.Y, sprite.TileIndex, sprite.Attributes, vramIndex, yValue)
-                                }
-                                */
 
                                 lowByte := ppu.VideoRam[vramIndex + yValue * 2]
                                 highByte := ppu.VideoRam[vramIndex + yValue * 2 + 1]

@@ -827,6 +827,10 @@ func (cpu *CPU) LoadMemory8(address uint16) uint8 {
             return cpu.InterruptEnable
         case address == IOInterrupt:
             return cpu.InterruptFlag
+        case address == IOWindowY:
+            return cpu.PPU.WindowY
+        case address == IOWindowX:
+            return cpu.PPU.WindowX
         case address == IOTimerDivider:
             // log.Printf("read io timer divider: 0x%x", cpu.TimerDivider)
             return uint8(cpu.TimerDivider / 256)
