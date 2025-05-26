@@ -287,7 +287,7 @@ func (ppu *PPU) Run(ppuCycles uint64, system System) {
                         // var backgroundX uint16 = (uint16(ppu.ViewPortX) + x/8) % 256
                         var backgroundX uint16 = uint16(offsetX/8)
 
-                        offsetY := ppu.LCDY - ppu.ViewPortY
+                        offsetY := ppu.LCDY + ppu.ViewPortY
 
                         // var backgroundY uint16 = (uint16(ppu.ViewPortY) + uint16(ppu.LCDY)/8) % 256
                         var backgroundY uint16 = uint16(offsetY/8)
