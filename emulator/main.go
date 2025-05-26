@@ -55,9 +55,6 @@ func MakeEngine(makeCpu func () (*core.CPU, error), maxCycle int64, rate int64, 
 func (engine *Engine) runEmulator(cycles int64) error {
     // engine.cpuBudget += core.CPUSpeed / engine.rate
 
-    if !engine.paused {
-        engine.cpuBudget += int64(float64(cycles) * engine.speed) / 4
-    }
     // log.Printf("cpu budget: %v = %v/s. cpu speed = %v. diff = %v", engine.cpuBudget, engine.cpuBudget * engine.rate, core.CPUSpeed, engine.cpuBudget * engine.rate - core.CPUSpeed)
 
     engine.Cpu.Joypad.Reset()
@@ -81,6 +78,8 @@ func (engine *Engine) runEmulator(cycles int64) error {
         }
     }
 
+    var speedBoost float64 = 0
+
     pressedKeys = inpututil.AppendPressedKeys(nil)
     for _, key := range pressedKeys {
         switch key {
@@ -100,7 +99,13 @@ func (engine *Engine) runEmulator(cycles int64) error {
                 engine.Cpu.Joypad.Left = true
             case ebiten.KeyRight:
                 engine.Cpu.Joypad.Right = true
+            case ebiten.KeyBackquote:
+                speedBoost = 1.5
         }
+    }
+
+    if !engine.paused {
+        engine.cpuBudget += int64(float64(cycles) * (engine.speed + speedBoost)) / 4
     }
 
     for engine.cpuBudget > 0 {
