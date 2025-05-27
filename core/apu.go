@@ -1,11 +1,22 @@
 package core
 
+import (
+    "log"
+    "sync"
+    "math"
+    // "math/rand/v2"
+)
+
 type Pulse struct {
     Enabled bool
     PanLeft bool
     PanRight bool
 
     LengthEnable bool
+
+    Duty uint8
+    DutyIndex uint8
+    Length uint8
 
     Period uint16
 
@@ -40,12 +51,57 @@ func (pulse *Pulse) SetPanning(left bool, right bool) {
     pulse.PanRight = right
 }
 
+func (pulse *Pulse) SetDuty(duty uint8) {
+    pulse.Duty = duty
+}
+
+func (pulse *Pulse) SetLength(length uint8) {
+    pulse.Length = length & 0b111111
+}
+
 func (pulse *Pulse) SetPeriodHigh(value uint8) {
     pulse.PeriodHigh = uint16(value & 0b111)
 }
 
 func (pulse *Pulse) SetPeriodLow(value uint8) {
     pulse.PeriodLow = uint16(value)
+}
+
+func (pulse *Pulse) generateSample() float32 {
+    var table []byte
+    switch pulse.Duty {
+        case 0:
+            table = []byte{0, 0, 0, 0, 0, 0, 0, 1}
+        case 1:
+            table = []byte{0, 0, 0, 0, 0, 0, 1, 1}
+        case 2:
+            table = []byte{0, 0, 0, 0, 1, 1, 1, 1}
+        case 3:
+            table = []byte{0, 0, 1, 1, 1, 1, 1, 1}
+    }
+
+    value := table[pulse.DutyIndex]
+    if value == 0 {
+        return -0.5
+    } else {
+        return 0.5
+    }
+}
+
+func (pulse *Pulse) GenerateLeftSample() float32 {
+    if pulse.Enabled && pulse.PanLeft {
+        return pulse.generateSample()
+    }
+
+    return 0
+}
+
+func (pulse *Pulse) GenerateRightSample() float32 {
+    if pulse.Enabled && pulse.PanRight {
+        return pulse.generateSample()
+    }
+
+    return 0
 }
 
 // run 1 cycle
@@ -56,6 +112,21 @@ func (pulse *Pulse) Run() {
         pulse.Period += 1
         if pulse.Period >= 2048 {
             pulse.Period = (pulse.PeriodHigh << 8) | pulse.PeriodLow
+            pulse.DutyIndex += 1
+            if pulse.DutyIndex >= 8 {
+                pulse.DutyIndex = 0
+            }
+        }
+    }
+}
+
+func (pulse *Pulse) DoLength() {
+    if pulse.LengthEnable {
+        if pulse.Length < 64 {
+            pulse.Length += 1
+            if pulse.Length == 64 {
+                pulse.Enabled = false
+            }
         }
     }
 }
@@ -89,24 +160,65 @@ type APU struct {
     Noise Noise
     MasterEnabled bool
 
+    SampleCounter float32
+    SampleRate uint32
+
     DivCounter uint16
     DivTicks uint16
+
+    audioLock sync.Mutex
+    audioBuffer []float32
+    audioBufferIndex int
 }
 
-func MakeAPU() *APU {
+func MakeAPU(sampleRate uint32) *APU {
     return &APU{
+        SampleCounter: float32(CPUSpeed) / float32(sampleRate),
+        SampleRate: sampleRate,
     }
 }
 
 type AudioStream struct {
+    APU *APU
 }
 
 func (stream *AudioStream) Read(data []byte) (int, error) {
-    return 0, nil
+    floatData := stream.APU.GetAudioBuffer(len(data) / 4 / 2)
+
+    for i := range len(floatData) {
+        v := math.Float32bits(floatData[i])
+        data[i*4+0] = byte(v)
+        data[i*4+1] = byte(v >> 8)
+        data[i*4+2] = byte(v >> 16)
+        data[i*4+3] = byte(v >> 24)
+    }
+
+    stream.APU.ReleaseAudioBuffer(floatData)
+
+    // log.Printf("Read %v audio bytes out of %v bytes", len(floatData) * 4, len(data))
+
+    return len(floatData) * 4, nil
 }
 
 func (apu *APU) GetAudioStream() *AudioStream {
-    return &AudioStream{}
+    return &AudioStream{
+        APU: apu,
+    }
+}
+
+func (apu *APU) GetAudioBuffer(samples int) []float32 {
+    apu.audioLock.Lock()
+    if len(apu.audioBuffer) != samples * 2 {
+        apu.audioBuffer = make([]float32, samples * 2)
+    }
+    log.Printf("audio buffer index %v: %v bytes", apu.audioBufferIndex, apu.audioBufferIndex * 4)
+    // return apu.audioBuffer[:apu.audioBufferIndex]
+    return apu.audioBuffer
+}
+
+func (apu *APU) ReleaseAudioBuffer(buffer []float32) {
+    apu.audioBufferIndex = 0
+    apu.audioLock.Unlock()
 }
 
 func (apu *APU) SetPulse1Sweep(value uint8) {
@@ -114,6 +226,13 @@ func (apu *APU) SetPulse1Sweep(value uint8) {
     direction := (value & 0b1_000) >> 3
     step := value & 0b111
     apu.Pulse1.SetSweep(pace, direction, step)
+}
+
+func (apu *APU) SetPulse1Duty(value uint8) {
+    duty := (value & 0b11_000000) >> 6
+    apu.Pulse1.SetDuty(duty)
+    length := value & 0b111_111
+    apu.Pulse1.SetLength(length)
 }
 
 func (apu *APU) SetPulse1PeriodHigh(value uint8) {
@@ -128,6 +247,7 @@ func (apu *APU) SetPulse1PeriodHigh(value uint8) {
     }
 
     apu.Pulse1.LengthEnable = lengthEnable
+    log.Printf("length enable pulse 1: %v", apu.Pulse1.LengthEnable)
 }
 
 func (apu *APU) SetPulse1PeriodLow(value uint8) {
@@ -213,6 +333,16 @@ func (apu *APU) ReadMasterControl() uint8 {
     return out
 }
 
+func (apu *APU) GenerateLeftSample() float32 {
+    // return rand.Float32() * 2 - 1 // Generate a random float between -1 and 1
+
+    return apu.Pulse1.GenerateLeftSample()
+}
+
+func (apu *APU) GenerateRightSample() float32 {
+    return apu.Pulse1.GenerateRightSample()
+}
+
 func (apu *APU) Run(cycles uint64) {
     for cycles > 0 {
         cycles -= 1
@@ -228,12 +358,32 @@ func (apu *APU) Run(cycles uint64) {
             }
 
             if apu.DivTicks % 2 == 0 {
-                // FIXME: sound length
+                apu.Pulse1.DoLength()
             }
 
             if apu.DivTicks % 4 == 0 {
                 // FIXME: channel1 frequency sweep
             }
+        }
+
+        // generate 44.1khz samples, one sample every 'cpu speed'/'sample rate' cycles
+        apu.SampleCounter -= 1
+        if apu.SampleCounter <= 0 {
+            // emit sample
+            // log.Printf("Emitting sample at %d Hz", apu.SampleRate)
+
+            apu.SampleCounter += float32(CPUSpeed) / float32(apu.SampleRate)
+
+            apu.audioLock.Lock()
+            if apu.audioBufferIndex < len(apu.audioBuffer) - 1 {
+                apu.audioBuffer[apu.audioBufferIndex] = apu.GenerateLeftSample()
+                apu.audioBufferIndex += 1
+                apu.audioBuffer[apu.audioBufferIndex] = apu.GenerateRightSample()
+                apu.audioBufferIndex += 1
+            } else {
+                // log.Printf("drop audio sample")
+            }
+            apu.audioLock.Unlock()
         }
     }
 }

@@ -131,12 +131,12 @@ type CPU struct {
     Error bool
 }
 
-func MakeCPU(mbc MBC) *CPU {
+func MakeCPU(mbc MBC, audioSampleRate uint32) *CPU {
     return &CPU{
         Ram: make([]uint8, 0x2000),
         HighRam: make([]uint8, 0xfffe - 0xff80 + 1),
         PPU: MakePPU(),
-        APU: MakeAPU(),
+        APU: MakeAPU(audioSampleRate),
         MBC: mbc,
     }
 }
@@ -705,7 +705,7 @@ func (cpu *CPU) StoreMemory(address uint16, value uint8) {
         case address == IOSoundChannel1PeriodLow:
             cpu.APU.SetPulse1PeriodLow(value)
         case address == IOSoundChannel1Duty:
-            // FIXME: implement with APU
+            cpu.APU.SetPulse1Duty(value)
         case address == IOSoundChannel2Duty:
             // FIXME: implement with APU
         case address == IOSoundChannel2Volume:

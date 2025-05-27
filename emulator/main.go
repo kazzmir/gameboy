@@ -178,6 +178,10 @@ func (engine *Engine) Update() error {
             log.Printf("Error creating audio player: %v", err)
         } else {
             engine.audioPlayer = player
+            engine.audioPlayer.SetVolume(0.5)
+            engine.audioPlayer.SetBufferSize(time.Second / 5)
+            // engine.audioPlayer.SetBufferSize(time.Second)
+            engine.audioPlayer.Play()
         }
     }
 
@@ -258,7 +262,7 @@ func main(){
             return nil, fmt.Errorf("unhandled cartridge type 0x%x: %v", gameboyFile.GetCartridgeType(), err)
         }
 
-        cpu := core.MakeCPU(mbc)
+        cpu := core.MakeCPU(mbc, SampleRate)
         cpu.InitializeDMG()
         cpu.Debug = *cpuDebug
         cpu.Error = true
