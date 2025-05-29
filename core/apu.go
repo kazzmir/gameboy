@@ -22,7 +22,6 @@ type Pulse struct {
     Volume uint8
     EnvelopeDirection int8 // -1 for decrease, 1 for increase
     EnvelopeSweep uint8 // 3-bit sweep
-    envelopeCounter uint16
     envelopeSweepCounter uint8
 
     Period uint16
@@ -114,10 +113,9 @@ func (pulse *Pulse) GenerateRightSample() float32 {
 }
 
 // run 1 cycle
-func (pulse *Pulse) Run() {
-    pulse.envelopeCounter += 1
+func (pulse *Pulse) Run(clock uint64) {
     // tick at 64hz, which is every 65536 cycles
-    if pulse.envelopeCounter == 0 {
+    if clock % (CPUSpeed/64) == 0 {
         pulse.envelopeSweepCounter += 1
         if pulse.envelopeSweepCounter >= pulse.EnvelopeSweep {
             pulse.envelopeSweepCounter = 0
@@ -181,6 +179,7 @@ func (noise *Noise) SetPanning(left bool, right bool) {
 }
 
 type APU struct {
+    counter uint64
     Pulse1 Pulse
     Pulse2 Pulse
     Wave Wave
@@ -391,7 +390,8 @@ func (apu *APU) GenerateRightSample() float32 {
 func (apu *APU) Run(cycles uint64) {
     for cycles > 0 {
         cycles -= 1
-        apu.Pulse1.Run()
+        apu.counter += 1
+        apu.Pulse1.Run(apu.counter)
 
         apu.DivCounter += 1
         if apu.DivCounter >= 512 {
