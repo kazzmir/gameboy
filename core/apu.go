@@ -112,8 +112,29 @@ func (pulse *Pulse) GenerateRightSample() float32 {
     return 0
 }
 
-// run 1 cycle
-func (pulse *Pulse) Run(clock uint64) {
+func (pulse *Pulse) doSweep(clock uint64) {
+    if pulse.Pace > 0 {
+        if clock % (CPUSpeed/128 * uint64(pulse.Pace)) == 0 {
+            var oldPeriod int16 = int16((pulse.PeriodHigh << 8) | pulse.PeriodLow)
+            switch pulse.Direction {
+                case 0:
+                    oldPeriod = oldPeriod + oldPeriod / (1 << pulse.Step)
+                case 1:
+                    oldPeriod = oldPeriod - oldPeriod / (1 << pulse.Step)
+            }
+
+            if oldPeriod > 0x7ff || oldPeriod < 0 {
+                pulse.Enabled = false
+            } else {
+                pulse.PeriodHigh = uint16((oldPeriod >> 8) & 0x7)
+                pulse.PeriodLow = uint16(oldPeriod & 0xff)
+                pulse.Period = (pulse.PeriodHigh << 8) | pulse.PeriodLow
+            }
+        }
+    }
+}
+
+func (pulse *Pulse) doVolume(clock uint64) {
     // tick at 64hz, which is every 65536 cycles
     if clock % (CPUSpeed/64) == 0 {
         pulse.envelopeSweepCounter += 1
@@ -130,7 +151,9 @@ func (pulse *Pulse) Run(clock uint64) {
             }
         }
     }
+}
 
+func (pulse *Pulse) doDutyCycle() {
     pulse.cycles += 1
     for pulse.cycles >= 4 {
         pulse.cycles -= 4
@@ -142,6 +165,17 @@ func (pulse *Pulse) Run(clock uint64) {
                 pulse.DutyIndex = 0
             }
         }
+    }
+}
+
+// run 1 cycle
+func (pulse *Pulse) Run(clock uint64) {
+    pulse.doVolume(clock)
+    pulse.doSweep(clock)
+    pulse.doDutyCycle()
+
+    if clock % (CPUSpeed/256) == 0 {
+        pulse.DoLength()
     }
 }
 
@@ -394,16 +428,11 @@ func (apu *APU) Run(cycles uint64) {
         apu.Pulse1.Run(apu.counter)
 
         apu.DivCounter += 1
-        if apu.DivCounter >= 512 {
-            apu.DivCounter -= 512
+        if apu.DivCounter >= (CPUSpeed/512) {
+            apu.DivCounter -= CPUSpeed/512
             apu.DivTicks += 1
 
-            if apu.DivTicks % 8 == 0 {
-                // FIXME: envelope sweep
-            }
-
             if apu.DivTicks % 2 == 0 {
-                apu.Pulse1.DoLength()
             }
 
             if apu.DivTicks % 4 == 0 {
