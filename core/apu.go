@@ -18,6 +18,13 @@ type Pulse struct {
     DutyIndex uint8
     Length uint8
 
+    // 4-bit volume
+    Volume uint8
+    EnvelopeDirection int8 // -1 for decrease, 1 for increase
+    EnvelopeSweep uint8 // 3-bit sweep
+    envelopeCounter uint16
+    envelopeSweepCounter uint8
+
     Period uint16
 
     PeriodHigh uint16
@@ -80,11 +87,13 @@ func (pulse *Pulse) generateSample() float32 {
             table = []byte{0, 0, 1, 1, 1, 1, 1, 1}
     }
 
+    volume := float32(pulse.Volume) / 15.0
+
     value := table[pulse.DutyIndex]
     if value == 0 {
-        return -0.5
+        return -volume
     } else {
-        return 0.5
+        return volume
     }
 }
 
@@ -106,6 +115,24 @@ func (pulse *Pulse) GenerateRightSample() float32 {
 
 // run 1 cycle
 func (pulse *Pulse) Run() {
+    pulse.envelopeCounter += 1
+    // tick at 64hz, which is every 65536 cycles
+    if pulse.envelopeCounter == 0 {
+        pulse.envelopeSweepCounter += 1
+        if pulse.envelopeSweepCounter >= pulse.EnvelopeSweep {
+            pulse.envelopeSweepCounter = 0
+            if pulse.EnvelopeDirection == -1 {
+                if pulse.Volume > 0 {
+                    pulse.Volume -= 1
+                }
+            } else {
+                if pulse.Volume < 15 {
+                    pulse.Volume += 1
+                }
+            }
+        }
+    }
+
     pulse.cycles += 1
     for pulse.cycles >= 4 {
         pulse.cycles -= 4
@@ -206,6 +233,7 @@ func (apu *APU) GetAudioStream() *AudioStream {
     }
 }
 
+// samples is the number of samples in one channel
 func (apu *APU) GetAudioBuffer(samples int) []float32 {
     apu.audioLock.Lock()
     if len(apu.audioBuffer) != samples * 2 {
@@ -219,6 +247,23 @@ func (apu *APU) GetAudioBuffer(samples int) []float32 {
 func (apu *APU) ReleaseAudioBuffer(buffer []float32) {
     apu.audioBufferIndex = 0
     apu.audioLock.Unlock()
+}
+
+func (apu *APU) SetPulse1Volume(value uint8) {
+    // volume top 4 bits, envelope direction bit 4, sweep page low 3 bits
+    volume := (value & 0b1111_0000) >> 4
+    envelopeDirection := (value & 0b0000_1000) >> 3
+    sweep := value & 0b111
+
+    apu.Pulse1.Volume = volume
+    if envelopeDirection == 0 {
+        apu.Pulse1.EnvelopeDirection = -1
+    } else {
+        apu.Pulse1.EnvelopeDirection = 1
+    }
+
+    apu.Pulse1.EnvelopeSweep = sweep
+    apu.Pulse1.envelopeSweepCounter = 0
 }
 
 func (apu *APU) SetPulse1Sweep(value uint8) {
@@ -247,7 +292,7 @@ func (apu *APU) SetPulse1PeriodHigh(value uint8) {
     }
 
     apu.Pulse1.LengthEnable = lengthEnable
-    log.Printf("length enable pulse 1: %v", apu.Pulse1.LengthEnable)
+    // log.Printf("length enable pulse 1: %v", apu.Pulse1.LengthEnable)
 }
 
 func (apu *APU) SetPulse1PeriodLow(value uint8) {
