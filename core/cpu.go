@@ -707,13 +707,13 @@ func (cpu *CPU) StoreMemory(address uint16, value uint8) {
         case address == IOSoundChannel1Duty:
             cpu.APU.SetPulse1Duty(value)
         case address == IOSoundChannel2Duty:
-            // FIXME: implement with APU
+            cpu.APU.SetPulse2Duty(value)
         case address == IOSoundChannel2Volume:
-            // FIXME: implement with APU
+            cpu.APU.SetPulse2Volume(value)
         case address == IOSoundChannel2PeriodLow:
-            // FIXME: implement with APU
+            cpu.APU.SetPulse2PeriodLow(value)
         case address == IOSoundChannel2PeriodHigh:
-            // FIXME: implement with APU
+            cpu.APU.SetPulse2PeriodHigh(value)
         case address == IOSoundChannel3Length:
             // FIXME: implement with APU
         case address == IOSoundChannel3DAC:

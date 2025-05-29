@@ -29,6 +29,7 @@ type Pulse struct {
     PeriodHigh uint16
     PeriodLow uint16
 
+    hasPeriodSweep bool
     Pace uint8
     Direction uint8
     Step uint8
@@ -73,6 +74,18 @@ func (pulse *Pulse) SetPeriodLow(value uint8) {
     pulse.PeriodLow = uint16(value)
 }
 
+func (pulse *Pulse) SetVolume(volume uint8, envelopeDirection uint8, envelopeSweep uint8) {
+    pulse.Volume = volume
+    if envelopeDirection == 0 {
+        pulse.EnvelopeDirection = -1
+    } else {
+        pulse.EnvelopeDirection = 1
+    }
+
+    pulse.EnvelopeSweep = envelopeSweep
+    pulse.envelopeSweepCounter = 0
+}
+
 func (pulse *Pulse) generateSample() float32 {
     var table []byte
     switch pulse.Duty {
@@ -113,7 +126,7 @@ func (pulse *Pulse) GenerateRightSample() float32 {
 }
 
 func (pulse *Pulse) doSweep(clock uint64) {
-    if pulse.Pace > 0 {
+    if pulse.hasPeriodSweep && pulse.Pace > 0 {
         if clock % (CPUSpeed/128 * uint64(pulse.Pace)) == 0 {
             var oldPeriod int16 = int16((pulse.PeriodHigh << 8) | pulse.PeriodLow)
             switch pulse.Direction {
@@ -235,6 +248,12 @@ func MakeAPU(sampleRate uint32) *APU {
     return &APU{
         SampleCounter: float32(CPUSpeed) / float32(sampleRate),
         SampleRate: sampleRate,
+        Pulse1: Pulse{
+            hasPeriodSweep: true,
+        },
+        Pulse2: Pulse{
+            hasPeriodSweep: false,
+        },
     }
 }
 
@@ -287,16 +306,7 @@ func (apu *APU) SetPulse1Volume(value uint8) {
     volume := (value & 0b1111_0000) >> 4
     envelopeDirection := (value & 0b0000_1000) >> 3
     sweep := value & 0b111
-
-    apu.Pulse1.Volume = volume
-    if envelopeDirection == 0 {
-        apu.Pulse1.EnvelopeDirection = -1
-    } else {
-        apu.Pulse1.EnvelopeDirection = 1
-    }
-
-    apu.Pulse1.EnvelopeSweep = sweep
-    apu.Pulse1.envelopeSweepCounter = 0
+    apu.Pulse1.SetVolume(volume, envelopeDirection, sweep)
 }
 
 func (apu *APU) SetPulse1Sweep(value uint8) {
@@ -330,6 +340,40 @@ func (apu *APU) SetPulse1PeriodHigh(value uint8) {
 
 func (apu *APU) SetPulse1PeriodLow(value uint8) {
     apu.Pulse1.SetPeriodLow(value)
+}
+
+func (apu *APU) SetPulse2Volume(value uint8) {
+    // volume top 4 bits, envelope direction bit 4, sweep page low 3 bits
+    volume := (value & 0b1111_0000) >> 4
+    envelopeDirection := (value & 0b0000_1000) >> 3
+    sweep := value & 0b111
+    apu.Pulse2.SetVolume(volume, envelopeDirection, sweep)
+}
+
+func (apu *APU) SetPulse2Duty(value uint8) {
+    duty := (value & 0b11_000000) >> 6
+    apu.Pulse2.SetDuty(duty)
+    length := value & 0b111_111
+    apu.Pulse2.SetLength(length)
+}
+
+func (apu *APU) SetPulse2PeriodHigh(value uint8) {
+    period := value & 0b111
+    apu.Pulse2.SetPeriodHigh(period)
+
+    trigger := value & 0b1_0000000 != 0
+    lengthEnable := value & 0b1_000000 != 0
+
+    if trigger {
+        apu.Pulse2.Trigger()
+    }
+
+    apu.Pulse2.LengthEnable = lengthEnable
+    // log.Printf("length enable pulse 1: %v", apu.Pulse1.LengthEnable)
+}
+
+func (apu *APU) SetPulse2PeriodLow(value uint8) {
+    apu.Pulse2.SetPeriodLow(value)
 }
 
 func (apu *APU) SetMasterEnabled(enabled bool) {
@@ -414,11 +458,11 @@ func (apu *APU) ReadMasterControl() uint8 {
 func (apu *APU) GenerateLeftSample() float32 {
     // return rand.Float32() * 2 - 1 // Generate a random float between -1 and 1
 
-    return apu.Pulse1.GenerateLeftSample()
+    return apu.Pulse1.GenerateLeftSample() + apu.Pulse2.GenerateLeftSample()
 }
 
 func (apu *APU) GenerateRightSample() float32 {
-    return apu.Pulse1.GenerateRightSample()
+    return apu.Pulse1.GenerateRightSample() + apu.Pulse2.GenerateRightSample()
 }
 
 func (apu *APU) Run(cycles uint64) {
@@ -426,6 +470,7 @@ func (apu *APU) Run(cycles uint64) {
         cycles -= 1
         apu.counter += 1
         apu.Pulse1.Run(apu.counter)
+        apu.Pulse2.Run(apu.counter)
 
         apu.DivCounter += 1
         if apu.DivCounter >= (CPUSpeed/512) {
