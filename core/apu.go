@@ -233,6 +233,10 @@ type APU struct {
     Noise Noise
     MasterEnabled bool
 
+    // 0-7, 0 is not entirely silent, just very quit. 7 is loudest
+    LeftVolume uint8
+    RightVolume uint8
+
     SampleCounter float32
     SampleRate uint32
 
@@ -254,6 +258,8 @@ func MakeAPU(sampleRate uint32) *APU {
         Pulse2: Pulse{
             hasPeriodSweep: false,
         },
+        LeftVolume: 0x7,
+        RightVolume: 0x7,
     }
 }
 
@@ -299,6 +305,16 @@ func (apu *APU) GetAudioBuffer(samples int) []float32 {
 func (apu *APU) ReleaseAudioBuffer(buffer []float32) {
     apu.audioBufferIndex = 0
     apu.audioLock.Unlock()
+}
+
+func (apu *APU) SetMasterVolume(volume uint8) {
+    // FIXME: use VIN left (bit 7) and VIN right (bit 3) to set volume
+
+    left := (volume & 0b111_0000) >> 4
+    right := (volume & 0b111)
+
+    apu.LeftVolume = left
+    apu.RightVolume = right
 }
 
 func (apu *APU) SetPulse1Volume(value uint8) {
@@ -458,14 +474,22 @@ func (apu *APU) ReadMasterControl() uint8 {
 func (apu *APU) GenerateLeftSample() float32 {
     // return rand.Float32() * 2 - 1 // Generate a random float between -1 and 1
 
-    return apu.Pulse1.GenerateLeftSample() + apu.Pulse2.GenerateLeftSample()
+    sample := apu.Pulse1.GenerateLeftSample() + apu.Pulse2.GenerateLeftSample()
+    scaled := float32(apu.LeftVolume+1) / 8
+    return sample * scaled
 }
 
 func (apu *APU) GenerateRightSample() float32 {
-    return apu.Pulse1.GenerateRightSample() + apu.Pulse2.GenerateRightSample()
+    sample := apu.Pulse1.GenerateRightSample() + apu.Pulse2.GenerateRightSample()
+    scaled := float32(apu.RightVolume+1) / 8
+    return sample * scaled
 }
 
 func (apu *APU) Run(cycles uint64) {
+    if !apu.MasterEnabled {
+        return
+    }
+
     for cycles > 0 {
         cycles -= 1
         apu.counter += 1
