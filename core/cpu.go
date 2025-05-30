@@ -725,13 +725,13 @@ func (cpu *CPU) StoreMemory(address uint16, value uint8) {
         case address == IOSoundChannel3PeriodHigh:
             // FIXME: implement with APU
         case address == IOSoundChannel4Volume:
-            // FIXME: implement with APU
+            cpu.APU.SetNoiseVolume(value)
         case address == IOSoundChannel4Control:
-            // FIXME: implement with APU
+            cpu.APU.SetNoiseControl(value)
         case address == IOSoundChannel4Length:
-            // FIXME: implement with APU
+            cpu.APU.SetNoiseLength(value)
         case address == IOSoundChannel4Frequency:
-            // FIXME: implement with APU
+            cpu.APU.SetNoiseFrequency(value)
         case address == IOMasterVolume:
             cpu.APU.SetMasterVolume(value)
         case address == IOSoundPanning:

@@ -218,11 +218,169 @@ type Noise struct {
     Enabled bool
     PanLeft bool
     PanRight bool
+
+    Volume uint8
+    InitialVolume uint8
+    envelopeSweepCounter uint8
+    EnvelopeSweep uint8
+    EnvelopeDirection int8
+
+    LengthOriginal uint8
+    Length uint8
+    LengthEnable bool
+
+    // 0 or 1, shifted out from lfsr
+    LastBit uint8
+
+    ClockShift uint8
+    LFSR uint16 // 3-bit LFSR
+    LFSRLength uint8 // 15 or 7, depending on LFSR type
+    ClockDivider uint8 // 3-bit clock divider
 }
 
 func (noise *Noise) SetPanning(left bool, right bool) {
     noise.PanLeft = left
     noise.PanRight = right
+}
+
+func (noise *Noise) SetFrequency(clock_shift uint8, lfsr uint8, clock_divider uint8) {
+    // log.Printf("noise: Set clock frequency=%v lfsr=%v divider=%v", clock_shift, lfsr, clock_divider)
+    noise.ClockShift = clock_shift
+    if lfsr == 0 {
+        noise.LFSRLength = 15
+    } else {
+        noise.LFSRLength = 7
+    }
+    noise.ClockDivider = clock_divider
+}
+
+func (noise *Noise) SetVolume(volume uint8, envelopeDirection uint8, envelopeSweep uint8) {
+    noise.Volume = volume
+    noise.InitialVolume = volume
+    if envelopeDirection == 0 {
+        noise.EnvelopeDirection = -1
+    } else {
+        noise.EnvelopeDirection = 1
+    }
+
+    noise.EnvelopeSweep = envelopeSweep
+    noise.envelopeSweepCounter = 0
+}
+
+func (noise *Noise) ResetLFSR() {
+    noise.LFSR = 0xffff
+}
+
+func (noise *Noise) Trigger() {
+    noise.Enabled = true
+    /*
+    if noise.Length >= 64 {
+        noise.Length = noise.LengthOriginal
+    }
+    */
+
+    noise.Length = noise.LengthOriginal
+
+    // log.Printf("noise trigger, length=%v", noise.Length)
+
+    noise.envelopeSweepCounter = 0
+    noise.Volume = noise.InitialVolume
+    noise.ResetLFSR()
+}
+
+func (noise *Noise) doVolume(clock uint64) {
+    // tick at 64hz, which is every 65536 cycles
+    if clock % (CPUSpeed/64) == 0 {
+        noise.envelopeSweepCounter += 1
+        if noise.envelopeSweepCounter >= noise.EnvelopeSweep {
+            noise.envelopeSweepCounter = 0
+            if noise.EnvelopeDirection == -1 {
+                if noise.Volume > 0 {
+                    noise.Volume -= 1
+                }
+            } else {
+                if noise.Volume < 15 {
+                    noise.Volume += 1
+                }
+            }
+        }
+    }
+}
+
+func (noise *Noise) Run(clock uint64) {
+    if noise.Enabled {
+        noise.doVolume(clock)
+
+        noise.doLFSR(clock)
+        // log.Printf("lfsr: 0x%x", noise.LFSR)
+
+        if clock % (CPUSpeed/256) == 0 {
+            noise.DoLength()
+        }
+    }
+}
+
+func (noise *Noise) doLFSR(clock uint64) {
+    rate := uint64(262144 / (1 << noise.ClockShift))
+    if noise.ClockDivider > 0 {
+        rate /= uint64(noise.ClockDivider)
+    } else {
+        rate *= 2
+    }
+
+    if clock % (CPUSpeed/rate) == 0 {
+        noise.LastBit = uint8(noise.LFSR & 1)
+        noise.LFSR >>= 1
+        newBit := (noise.LFSR & 1) ^ ((noise.LFSR & 0b10) >> 1)
+        noise.LFSR |= newBit << 15
+        if noise.LFSRLength == 7 {
+            noise.LFSR |= newBit << 7
+        }
+    }
+}
+
+func (noise *Noise) DoLength() {
+    if noise.LengthEnable {
+        // log.Printf("noise length %v", noise.Length)
+        if noise.Length < 64 {
+            noise.Length += 1
+        }
+
+        if noise.Length >= 64 {
+            // log.Printf("noise length disable")
+            noise.Enabled = false
+        }
+    }
+}
+
+func (noise *Noise) GenerateLeftSample() float32 {
+    if noise.Enabled && noise.PanLeft {
+        var volume float32 = 1
+        if noise.LastBit == 0 {
+            volume = -1
+        }
+
+        scaled := float32(noise.Volume) / 15
+
+        return volume * scaled
+    } else {
+        return 0
+    }
+}
+
+func (noise *Noise) GenerateRightSample() float32 {
+    if noise.Enabled && noise.PanRight {
+        var volume float32 = 1
+        if noise.LastBit == 0 {
+            volume = -1
+        }
+
+        scaled := float32(noise.Volume) / 15
+
+        return volume * scaled
+    } else {
+        return 0
+    }
 }
 
 type APU struct {
@@ -260,6 +418,9 @@ func MakeAPU(sampleRate uint32) *APU {
         },
         LeftVolume: 0x7,
         RightVolume: 0x7,
+        Noise: Noise{
+            LFSRLength: 15,
+        },
     }
 }
 
@@ -297,7 +458,7 @@ func (apu *APU) GetAudioBuffer(samples int) []float32 {
     if len(apu.audioBuffer) != samples * 2 {
         apu.audioBuffer = make([]float32, samples * 2)
     }
-    log.Printf("audio buffer index %v: %v bytes", apu.audioBufferIndex, apu.audioBufferIndex * 4)
+    // log.Printf("audio buffer index %v: %v bytes", apu.audioBufferIndex, apu.audioBufferIndex * 4)
     // return apu.audioBuffer[:apu.audioBufferIndex]
     return apu.audioBuffer
 }
@@ -305,6 +466,42 @@ func (apu *APU) GetAudioBuffer(samples int) []float32 {
 func (apu *APU) ReleaseAudioBuffer(buffer []float32) {
     apu.audioBufferIndex = 0
     apu.audioLock.Unlock()
+}
+
+func (apu *APU) SetNoiseLength(value uint8) {
+    length := value & 0b111_111
+    apu.Noise.Length = length
+    apu.Noise.LengthOriginal = length
+}
+
+func (apu *APU) SetNoiseVolume(value uint8) {
+    volume := (value & 0b1111_0000) >> 4
+    envelopeDirection := (value & 0b0000_1000) >> 3
+    sweep := value & 0b111
+    apu.Noise.SetVolume(volume, envelopeDirection, sweep)
+}
+
+func (apu *APU) SetNoiseControl(value uint8) {
+    trigger := value & 0b1000_0000 != 0
+    lengthEnable := value & 0b100_0000 != 0
+
+    if trigger {
+        apu.Noise.Trigger()
+    }
+
+    if lengthEnable {
+        apu.Noise.LengthEnable = true
+        apu.Noise.Length = 0
+    } else {
+        apu.Noise.LengthEnable = false
+    }
+}
+
+func (apu *APU) SetNoiseFrequency(value uint8) {
+    clock_shift := (value & 0b1111_0000) >> 4
+    lfsr := (value & 0b1_000) >> 3
+    clock_divider := value & 0b111
+    apu.Noise.SetFrequency(clock_shift, lfsr, clock_divider)
 }
 
 func (apu *APU) SetMasterVolume(volume uint8) {
@@ -474,13 +671,15 @@ func (apu *APU) ReadMasterControl() uint8 {
 func (apu *APU) GenerateLeftSample() float32 {
     // return rand.Float32() * 2 - 1 // Generate a random float between -1 and 1
 
-    sample := apu.Pulse1.GenerateLeftSample() + apu.Pulse2.GenerateLeftSample()
+    sample := apu.Pulse1.GenerateLeftSample() + apu.Pulse2.GenerateLeftSample() + apu.Noise.GenerateLeftSample()
+    // sample := apu.Noise.GenerateLeftSample()
     scaled := float32(apu.LeftVolume+1) / 8
     return sample * scaled
 }
 
 func (apu *APU) GenerateRightSample() float32 {
-    sample := apu.Pulse1.GenerateRightSample() + apu.Pulse2.GenerateRightSample()
+    sample := apu.Pulse1.GenerateRightSample() + apu.Pulse2.GenerateRightSample() + apu.Noise.GenerateRightSample()
+    // sample := apu.Noise.GenerateRightSample()
     scaled := float32(apu.RightVolume+1) / 8
     return sample * scaled
 }
@@ -495,6 +694,7 @@ func (apu *APU) Run(cycles uint64) {
         apu.counter += 1
         apu.Pulse1.Run(apu.counter)
         apu.Pulse2.Run(apu.counter)
+        apu.Noise.Run(apu.counter)
 
         apu.DivCounter += 1
         if apu.DivCounter >= (CPUSpeed/512) {
