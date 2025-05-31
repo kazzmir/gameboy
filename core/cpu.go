@@ -164,7 +164,12 @@ func (cpu *CPU) InitializeDMG() {
     cpu.StoreMemory(IOInterrupt, 0xe1)
     cpu.StoreMemory(IOSoundChannel1Sweep, 0x80)
     cpu.StoreMemory(IOSoundChannel1Duty, 0xbf)
-    cpu.StoreMemory(IOSoundChannel1Volume, 0xf3)
+
+    // FIXME: pulse1 turns on too early, not sure why but for now
+    // just set the volume to 0
+    // cpu.StoreMemory(IOSoundChannel1Volume, 0xf3)
+    cpu.StoreMemory(IOSoundChannel1Volume, 0)
+
     cpu.StoreMemory(IOSoundChannel1PeriodLow, 0xff)
     cpu.StoreMemory(IOSoundChannel1PeriodHigh, 0xbf)
     cpu.StoreMemory(IOSoundChannel2Duty, 0x3f)

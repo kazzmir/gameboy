@@ -24,6 +24,7 @@ type Pulse struct {
 
     // 4-bit volume
     Volume uint8
+    InitialVolume uint8
     EnvelopeDirection int8 // -1 for decrease, 1 for increase
     EnvelopeSweep uint8 // 3-bit sweep
     envelopeSweepCounter uint8
@@ -42,8 +43,11 @@ type Pulse struct {
 }
 
 func (pulse *Pulse) Trigger() {
-    pulse.Enabled = true
     pulse.Period = (pulse.PeriodHigh << 8) | pulse.PeriodLow
+    pulse.Volume = pulse.InitialVolume
+    pulse.Length = 0
+    pulse.Enabled = true
+
     // FIXME:
     //   expire length timer
     //   envelope timer is reset
@@ -79,6 +83,7 @@ func (pulse *Pulse) SetPeriodLow(value uint8) {
 }
 
 func (pulse *Pulse) SetVolume(volume uint8, envelopeDirection uint8, envelopeSweep uint8) {
+    pulse.InitialVolume = volume
     pulse.Volume = volume
     if envelopeDirection == 0 {
         pulse.EnvelopeDirection = -1
@@ -371,7 +376,7 @@ func (noise *Noise) SetVolume(volume uint8, envelopeDirection uint8, envelopeSwe
     noise.EnvelopeSweep = envelopeSweep
     noise.envelopeSweepCounter = 0
 
-    log.Printf("noise volume %v envelope direction %v sweep %v", noise.Volume, noise.EnvelopeDirection, noise.EnvelopeSweep)
+    // log.Printf("noise volume %v envelope direction %v sweep %v", noise.Volume, noise.EnvelopeDirection, noise.EnvelopeSweep)
 }
 
 func (noise *Noise) ResetLFSR() {
@@ -831,7 +836,7 @@ func (apu *APU) GenerateLeftSample() float32 {
     // return rand.Float32() * 2 - 1 // Generate a random float between -1 and 1
 
     sample := apu.Pulse1.GenerateLeftSample() + apu.Pulse2.GenerateLeftSample() + apu.Noise.GenerateLeftSample() + apu.Wave.GenerateLeftSample()
-    // sample := apu.Wave.GenerateLeftSample()
+    // sample := apu.Pulse1.GenerateLeftSample()
     // log.Printf("wave left sample: %v", sample)
     // sample := apu.Noise.GenerateLeftSample()
     scaled := float32(apu.LeftVolume+1) / 8
@@ -840,7 +845,7 @@ func (apu *APU) GenerateLeftSample() float32 {
 
 func (apu *APU) GenerateRightSample() float32 {
     sample := apu.Pulse1.GenerateRightSample() + apu.Pulse2.GenerateRightSample() + apu.Noise.GenerateRightSample() + apu.Wave.GenerateRightSample()
-    // sample := apu.Noise.GenerateRightSample()
+    // sample := apu.Pulse1.GenerateRightSample()
     // sample := apu.Wave.GenerateRightSample()
     scaled := float32(apu.RightVolume+1) / 8
     return sample * scaled
