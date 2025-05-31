@@ -690,7 +690,8 @@ func (cpu *CPU) StoreMemory(address uint16, value uint8) {
         case address == IOViewPortX:
             cpu.PPU.ViewPortX = value
         case address >= IOWaveFormStart && address <= IOWaveFormEnd:
-            // FIXME: implement with APU
+            index := int(address - IOWaveFormStart)
+            cpu.APU.SetWavePattern(value, index)
         case address == IOJoypad:
             buttons := value & 0b100000
             dpad := value & 0b10000
@@ -715,15 +716,15 @@ func (cpu *CPU) StoreMemory(address uint16, value uint8) {
         case address == IOSoundChannel2PeriodHigh:
             cpu.APU.SetPulse2PeriodHigh(value)
         case address == IOSoundChannel3Length:
-            // FIXME: implement with APU
+            cpu.APU.SetWaveLength(value)
         case address == IOSoundChannel3DAC:
-            // FIXME: implement with APU
+            cpu.APU.SetWaveDAC(value)
         case address == IOSoundChannel3Volume:
-            // FIXME: implement with APU
+            cpu.APU.SetWaveVolume(value)
         case address == IOSoundChannel3PeriodLow:
-            // FIXME: implement with APU
+            cpu.APU.SetWavePeriodLow(value)
         case address == IOSoundChannel3PeriodHigh:
-            // FIXME: implement with APU
+            cpu.APU.SetWavePeriodHigh(value)
         case address == IOSoundChannel4Volume:
             cpu.APU.SetNoiseVolume(value)
         case address == IOSoundChannel4Control:

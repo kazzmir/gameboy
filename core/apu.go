@@ -207,6 +207,44 @@ type Wave struct {
     Enabled bool
     PanLeft bool
     PanRight bool
+
+    PeriodLow uint16
+    PeriodHigh uint16
+
+    LengthEnable bool
+    Length uint8
+    LengthValue uint8
+
+    Volume uint8 // 0-3, 0 is silent, 1 100%, 2 50%, 3 25%
+    samples []uint8
+    sampleIndex uint8
+
+    frequency uint16
+}
+
+func (wave *Wave) DoLength() {
+    if wave.LengthEnable {
+        // log.Printf("noise length %v", noise.Length)
+        if wave.Length < 64 {
+            wave.Length += 1
+        }
+
+        if wave.Length >= 64 {
+            // log.Printf("noise length disable")
+            wave.Enabled = false
+        }
+    }
+}
+
+func (wave *Wave) Trigger() {
+    wave.Enabled = true
+    wave.Length = 0
+    wave.sampleIndex = 0
+}
+
+func (wave *Wave) SetLength(length uint8) {
+    wave.Length = 0
+    wave.LengthValue = length
 }
 
 func (wave *Wave) SetPanning(left bool, right bool) {
@@ -214,8 +252,44 @@ func (wave *Wave) SetPanning(left bool, right bool) {
     wave.PanRight = right
 }
 
+func (wave *Wave) SetPeriodHigh(value uint8) {
+    wave.PeriodHigh = uint16(value & 0b111)
+    wave.frequency = (wave.PeriodHigh << 8) | wave.PeriodLow
+}
+
+func (wave *Wave) SetPeriodLow(value uint8) {
+    wave.PeriodLow = uint16(value)
+    wave.frequency = (wave.PeriodHigh << 8) | wave.PeriodLow
+}
+
+func (wave *Wave) SetPattern(value uint8, index int) {
+    if index < len(wave.samples) {
+        wave.samples[index] = value
+    } else {
+        // log.Printf("wave pattern index %v out of bounds, len=%v", index, len(wave.samples))
+    }
+}
+
+func (wave *Wave) getSample() float32 {
+    if len(wave.samples) == 0 {
+        return 0
+    }
+
+    var volume float32
+    switch wave.Volume {
+        case 0: volume = 0
+        case 1: volume = 1
+        case 2: volume = 0.5
+        case 3: volume = 0.25
+    }
+
+    sample := int(wave.samples[wave.sampleIndex]) - 8
+    return float32(sample) / 8.0 * volume
+}
+
 func (wave *Wave) GenerateLeftSample() float32 {
     if wave.Enabled && wave.PanLeft {
+        return wave.getSample()
     }
 
     return 0
@@ -223,12 +297,22 @@ func (wave *Wave) GenerateLeftSample() float32 {
 
 func (wave *Wave) GenerateRightSample() float32 {
     if wave.Enabled && wave.PanLeft {
+        return wave.getSample()
     }
 
     return 0
 }
 
 func (wave *Wave) Run(clock uint64) {
+    if wave.Enabled {
+        if wave.frequency > 0 && clock % uint64((2048 - wave.frequency) * 2) == 0 {
+            wave.sampleIndex = (wave.sampleIndex + 1) % uint8(len(wave.samples))
+        }
+
+        if clock % (CPUSpeed/256) == 0 {
+            wave.DoLength()
+        }
+    }
 }
 
 type Noise struct {
@@ -438,6 +522,9 @@ func MakeAPU(sampleRate uint32) *APU {
         Noise: Noise{
             LFSRLength: 15,
         },
+        Wave: Wave{
+            samples: make([]uint8, 32),
+        },
     }
 }
 
@@ -519,6 +606,47 @@ func (apu *APU) SetNoiseFrequency(value uint8) {
     lfsr := (value & 0b1_000) >> 3
     clock_divider := value & 0b111
     apu.Noise.SetFrequency(clock_shift, lfsr, clock_divider)
+}
+
+func (apu *APU) SetWaveLength(value uint8) {
+    apu.Wave.SetLength(value)
+}
+
+func (apu *APU) SetWaveVolume(value uint8) {
+    volume := (value & 0b11_00000) >> 5
+    apu.Wave.Volume = volume
+}
+
+func (apu *APU) SetWavePeriodHigh(value uint8) {
+    period := value & 0b111
+    lengthEnable := value & 0b1_000_000 != 0
+    trigger := value & 0b1_0000_000 != 0
+
+    apu.Wave.SetPeriodHigh(period)
+    apu.Wave.LengthEnable = lengthEnable
+
+    // log.Printf("wave length enable %v", apu.Wave.LengthEnable)
+
+    if trigger {
+        apu.Wave.Trigger()
+    }
+}
+
+func (apu *APU) SetWavePeriodLow(value uint8) {
+    apu.Wave.SetPeriodLow(value)
+}
+
+func (apu *APU) SetWavePattern(value uint8, index int) {
+    high := (value & 0b1111_0000) >> 4
+    low := value & 0b1111
+
+    apu.Wave.SetPattern(high, index*2)
+    apu.Wave.SetPattern(low, index*2+1)
+}
+
+func (apu *APU) SetWaveDAC(value uint8) {
+    enabled := value & 0b1_0000_000 != 0
+    apu.Wave.Enabled = enabled
 }
 
 func (apu *APU) SetMasterVolume(volume uint8) {
@@ -689,6 +817,8 @@ func (apu *APU) GenerateLeftSample() float32 {
     // return rand.Float32() * 2 - 1 // Generate a random float between -1 and 1
 
     sample := apu.Pulse1.GenerateLeftSample() + apu.Pulse2.GenerateLeftSample() + apu.Noise.GenerateLeftSample() + apu.Wave.GenerateLeftSample()
+    // sample := apu.Wave.GenerateLeftSample()
+    // log.Printf("wave left sample: %v", sample)
     // sample := apu.Noise.GenerateLeftSample()
     scaled := float32(apu.LeftVolume+1) / 8
     return sample * scaled
@@ -697,6 +827,7 @@ func (apu *APU) GenerateLeftSample() float32 {
 func (apu *APU) GenerateRightSample() float32 {
     sample := apu.Pulse1.GenerateRightSample() + apu.Pulse2.GenerateRightSample() + apu.Noise.GenerateRightSample() + apu.Wave.GenerateRightSample()
     // sample := apu.Noise.GenerateRightSample()
+    // sample := apu.Wave.GenerateRightSample()
     scaled := float32(apu.RightVolume+1) / 8
     return sample * scaled
 }
