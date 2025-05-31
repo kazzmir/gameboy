@@ -1,11 +1,15 @@
 package core
 
 import (
-    // "log"
+    "log"
     "sync"
     "math"
     // "math/rand/v2"
 )
+
+func fake(){
+    log.Printf("fake")
+}
 
 type Pulse struct {
     Enabled bool
@@ -149,7 +153,7 @@ func (pulse *Pulse) doSweep(clock uint64) {
 
 func (pulse *Pulse) doVolume(clock uint64) {
     // tick at 64hz, which is every 65536 cycles
-    if clock % (CPUSpeed/64) == 0 {
+    if clock % (CPUSpeed/64) == 0 && pulse.EnvelopeSweep > 0 {
         pulse.envelopeSweepCounter += 1
         if pulse.envelopeSweepCounter >= pulse.EnvelopeSweep {
             pulse.envelopeSweepCounter = 0
@@ -366,6 +370,8 @@ func (noise *Noise) SetVolume(volume uint8, envelopeDirection uint8, envelopeSwe
 
     noise.EnvelopeSweep = envelopeSweep
     noise.envelopeSweepCounter = 0
+
+    log.Printf("noise volume %v envelope direction %v sweep %v", noise.Volume, noise.EnvelopeDirection, noise.EnvelopeSweep)
 }
 
 func (noise *Noise) ResetLFSR() {
@@ -391,7 +397,7 @@ func (noise *Noise) Trigger() {
 
 func (noise *Noise) doVolume(clock uint64) {
     // tick at 64hz, which is every 65536 cycles
-    if clock % (CPUSpeed/64) == 0 {
+    if clock % (CPUSpeed/64) == 0 && noise.EnvelopeSweep > 0 {
         noise.envelopeSweepCounter += 1
         if noise.envelopeSweepCounter >= noise.EnvelopeSweep {
             noise.envelopeSweepCounter = 0
@@ -647,6 +653,14 @@ func (apu *APU) SetWavePattern(value uint8, index int) {
 func (apu *APU) SetWaveDAC(value uint8) {
     enabled := value & 0b1_0000_000 != 0
     apu.Wave.Enabled = enabled
+}
+
+func (apu *APU) GetMasterVolume() uint8 {
+    var out uint8 = 0
+    out |= (apu.LeftVolume & 0b111) << 4 // left volume in bits 7-4
+    out |= (apu.RightVolume & 0b111) // right volume in bits 3-0
+
+    return out
 }
 
 func (apu *APU) SetMasterVolume(volume uint8) {

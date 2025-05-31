@@ -855,8 +855,7 @@ func (cpu *CPU) LoadMemory8(address uint16) uint8 {
             // FIXME: need apu
             return 0
         case address == IOMasterVolume:
-            // FIXME: need apu
-            return 0
+            return cpu.APU.GetMasterVolume()
         case address == IOSoundChannel3DAC:
             // FIXME: need apu
             return 0
