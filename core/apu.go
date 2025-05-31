@@ -214,6 +214,23 @@ func (wave *Wave) SetPanning(left bool, right bool) {
     wave.PanRight = right
 }
 
+func (wave *Wave) GenerateLeftSample() float32 {
+    if wave.Enabled && wave.PanLeft {
+    }
+
+    return 0
+}
+
+func (wave *Wave) GenerateRightSample() float32 {
+    if wave.Enabled && wave.PanLeft {
+    }
+
+    return 0
+}
+
+func (wave *Wave) Run(clock uint64) {
+}
+
 type Noise struct {
     Enabled bool
     PanLeft bool
@@ -671,14 +688,14 @@ func (apu *APU) ReadMasterControl() uint8 {
 func (apu *APU) GenerateLeftSample() float32 {
     // return rand.Float32() * 2 - 1 // Generate a random float between -1 and 1
 
-    sample := apu.Pulse1.GenerateLeftSample() + apu.Pulse2.GenerateLeftSample() + apu.Noise.GenerateLeftSample()
+    sample := apu.Pulse1.GenerateLeftSample() + apu.Pulse2.GenerateLeftSample() + apu.Noise.GenerateLeftSample() + apu.Wave.GenerateLeftSample()
     // sample := apu.Noise.GenerateLeftSample()
     scaled := float32(apu.LeftVolume+1) / 8
     return sample * scaled
 }
 
 func (apu *APU) GenerateRightSample() float32 {
-    sample := apu.Pulse1.GenerateRightSample() + apu.Pulse2.GenerateRightSample() + apu.Noise.GenerateRightSample()
+    sample := apu.Pulse1.GenerateRightSample() + apu.Pulse2.GenerateRightSample() + apu.Noise.GenerateRightSample() + apu.Wave.GenerateRightSample()
     // sample := apu.Noise.GenerateRightSample()
     scaled := float32(apu.RightVolume+1) / 8
     return sample * scaled
@@ -695,6 +712,7 @@ func (apu *APU) Run(cycles uint64) {
         apu.Pulse1.Run(apu.counter)
         apu.Pulse2.Run(apu.counter)
         apu.Noise.Run(apu.counter)
+        apu.Wave.Run(apu.counter)
 
         apu.DivCounter += 1
         if apu.DivCounter >= (CPUSpeed/512) {
