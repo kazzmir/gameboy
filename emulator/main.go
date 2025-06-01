@@ -2,6 +2,8 @@ package main
 
 import (
     "os"
+    "io"
+    "io/fs"
     "fmt"
     "log"
     "time"
@@ -148,7 +150,52 @@ func (engine *Engine) runEmulator(cycles int64) error {
     return nil
 }
 
+func (engine *Engine) maybeLoadDropped() error {
+    dropped := ebiten.DroppedFiles()
+    if dropped != nil {
+        files, err := fs.ReadDir(dropped, ".")
+        if err == nil {
+            for _, entry := range files {
+                if entry.IsDir() {
+                    continue
+                }
+
+                file, err := dropped.Open(entry.Name())
+                if err != nil {
+                    log.Printf("Unable to open %v", entry.Name())
+                    continue
+                }
+                defer file.Close()
+
+                makeCpu, err := loadGameboy(file, engine.Cpu.Debug, engine.Cpu.PPU.Debug)
+                if err != nil {
+                    log.Printf("Error loading gameboy file: %v: %v", entry.Name(), err)
+                } else {
+                    cpu, err := makeCpu()
+                    if err != nil {
+                        log.Printf("Unable to create cpu: %v", err)
+                        return err
+                    }
+                    if engine.audioPlayer != nil {
+                        engine.audioPlayer.Close()
+                    }
+                    engine.audioPlayer = nil
+                    engine.Cpu = cpu
+                    engine.MakeCpu = makeCpu
+                }
+            }
+        }
+    }
+
+    return nil
+}
+
 func (engine *Engine) Update() error {
+    err := engine.maybeLoadDropped()
+    if err != nil {
+        return err
+    }
+
     keys := inpututil.AppendJustPressedKeys(nil)
     for _, key := range keys {
         if key == ebiten.KeyEscape || key == ebiten.KeyCapsLock {
@@ -156,7 +203,7 @@ func (engine *Engine) Update() error {
         }
     }
 
-    err := engine.runEmulator(core.CPUSpeed / engine.rate)
+    err = engine.runEmulator(core.CPUSpeed / engine.rate)
 
     if errors.Is(err, RestartError) {
         cpu, err := engine.MakeCpu()
@@ -222,6 +269,48 @@ func (engine *Engine) Layout(outsideWidth, outsideHeight int) (int, int) {
     return core.ScreenWidth, core.ScreenHeight
 }
 
+func loadGameboy(file io.Reader, cpuDebug bool, ppuDebug bool) (func() (*core.CPU, error), error) {
+    gameboyFile, err := core.LoadGameboy(file)
+    if err != nil {
+        return nil, err
+    }
+
+    log.Printf("Loaded %d bytes", len(gameboyFile.Data))
+
+    log.Printf("Gameboy file '%v'", gameboyFile.GetTitle())
+    log.Printf("Rom size: %v", gameboyFile.GetRomSize())
+    log.Printf("CGB Flag: %v", gameboyFile.GetCGBFlag())
+    log.Printf("SGB Flag: %v", gameboyFile.GetSGBFlag())
+    log.Printf("Cartidge type: 0x%x", gameboyFile.GetCartridgeType())
+
+    makeCpu := func() (*core.CPU, error) {
+        mbc, err := core.MakeMBC(gameboyFile.GetCartridgeType(), gameboyFile.GetRom())
+        if err != nil {
+            return nil, fmt.Errorf("unhandled cartridge type 0x%x: %v", gameboyFile.GetCartridgeType(), err)
+        }
+
+        cpu := core.MakeCPU(mbc, SampleRate)
+        cpu.InitializeDMG()
+        cpu.Debug = cpuDebug
+        cpu.Error = true
+        cpu.PPU.Debug = ppuDebug
+        return cpu, nil
+    }
+
+    return makeCpu, nil
+}
+
+func loadGameboyFromPath(path string, cpuDebug bool, ppuDebug bool) (func() (*core.CPU, error), error) {
+    file, err := os.Open(path)
+    if err != nil {
+        return nil, err
+    }
+
+    defer file.Close()
+
+    return loadGameboy(file, cpuDebug, ppuDebug)
+}
+
 func main(){
     maxCycle := flag.Int64("max", 0, "Max cycles to run")
     cpuDebug := flag.Bool("cpu-debug", false, "Enable CPU debug")
@@ -242,32 +331,10 @@ func main(){
         return
     }
 
-    gameboyFile, err := core.LoadGameboyFromFile(path)
+    makeCpu, err := loadGameboyFromPath(path, *cpuDebug, *ppuDebug)
     if err != nil {
         log.Printf("Error: %v", err)
         return
-    }
-
-    log.Printf("Loaded %d bytes", len(gameboyFile.Data))
-
-    log.Printf("Gameboy file '%v'", gameboyFile.GetTitle())
-    log.Printf("Rom size: %v", gameboyFile.GetRomSize())
-    log.Printf("CGB Flag: %v", gameboyFile.GetCGBFlag())
-    log.Printf("SGB Flag: %v", gameboyFile.GetSGBFlag())
-    log.Printf("Cartidge type: 0x%x", gameboyFile.GetCartridgeType())
-
-    makeCpu := func() (*core.CPU, error) {
-        mbc, err := core.MakeMBC(gameboyFile.GetCartridgeType(), gameboyFile.GetRom())
-        if err != nil {
-            return nil, fmt.Errorf("unhandled cartridge type 0x%x: %v", gameboyFile.GetCartridgeType(), err)
-        }
-
-        cpu := core.MakeCPU(mbc, SampleRate)
-        cpu.InitializeDMG()
-        cpu.Debug = *cpuDebug
-        cpu.Error = true
-        cpu.PPU.Debug = *ppuDebug
-        return cpu, nil
     }
     // cpu.PC = 0x100
 
