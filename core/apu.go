@@ -419,6 +419,21 @@ func (noise *Noise) doVolume(clock uint64) {
     }
 }
 
+func (noise *Noise) ReadVolume() uint8 {
+    var out uint8 = 0
+    out |= (noise.Volume & 0b1111) << 4 // top 4 bits are volume
+    var envelope uint8 = 0
+    if noise.EnvelopeDirection == -1 {
+        envelope = 0
+    } else {
+        envelope = 1
+    }
+    out |= (envelope & 0b1) << 3 // envelope direction bit
+    out |= noise.EnvelopeSweep & 0b111 // bottom 3 bits are envelope sweep
+
+    return out
+}
+
 func (noise *Noise) Run(clock uint64) {
     if noise.Enabled {
         noise.doVolume(clock)
@@ -591,6 +606,10 @@ func (apu *APU) GetAudioStream() *AudioStream {
     return apu.AudioStream
 }
 
+func (apu *APU) ReadNoiseVolume() uint8 {
+    return apu.Noise.ReadVolume()
+}
+
 func (apu *APU) SetNoiseLength(value uint8) {
     length := value & 0b111_111
     apu.Noise.Length = length
@@ -692,6 +711,20 @@ func (apu *APU) SetPulse1Volume(value uint8) {
     envelopeDirection := (value & 0b0000_1000) >> 3
     sweep := value & 0b111
     apu.Pulse1.SetVolume(volume, envelopeDirection, sweep)
+}
+
+func (apu *APU) ReadPulse1Sweep() uint8 {
+    var out uint8 = 0
+
+    out |= (apu.Pulse1.Pace & 0b111) << 4 // top 3 bits are pace
+    if apu.Pulse1.Direction == 0 {
+        out |= 0b1000 // direction bit 3 is 1 for increase
+    } else {
+        out |= 0b0000 // direction bit 3 is 0 for decrease
+    }
+    out |= (apu.Pulse1.Step & 0b111) // bottom 3 bits are step
+
+    return out
 }
 
 func (apu *APU) SetPulse1Sweep(value uint8) {

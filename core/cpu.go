@@ -836,6 +836,8 @@ func (cpu *CPU) LoadMemory8(address uint16) uint8 {
             return cpu.PPU.LCDStatus
         case address == IOInterruptEnable:
             return cpu.InterruptEnable
+        case address == IOLCDYCompare:
+            return cpu.PPU.LCDYCompare
         case address == IOInterrupt:
             return cpu.InterruptFlag
         case address == IOWindowY:
@@ -854,20 +856,24 @@ func (cpu *CPU) LoadMemory8(address uint16) uint8 {
         case address == IOJoypad:
             return cpu.Joypad.GetValue()
         case address == IOSoundChannel1Sweep:
-            // FIXME: get from apu
-            return 0
+            // log.Printf("Warning: read IOSoundChannel1Sweep at 0x%x", address)
+            return cpu.APU.ReadPulse1Sweep()
         case address == IOSoundChannel1Duty:
+            log.Printf("Warning: read IOSoundChannel1Duty at 0x%x", address)
             // FIXME: need apu
             return 0
         case address == IOMasterVolume:
             return cpu.APU.GetMasterVolume()
         case address == IOSoundChannel3DAC:
+            log.Printf("Warning: read IOSoundChannel3DAC at 0x%x", address)
             // FIXME: need apu
             return 0
         case address == IOSoundPanning:
             return cpu.APU.ReadSoundPanning()
         case address == IOSoundOnOff:
             return cpu.APU.ReadMasterControl()
+        case address == IOSoundChannel4Volume:
+            return cpu.APU.ReadNoiseVolume()
         case address == IOLCDY:
             return cpu.PPU.LCDY
     }
