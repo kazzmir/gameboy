@@ -513,12 +513,6 @@ type APU struct {
     DivCounter uint16
     DivTicks uint16
 
-    /*
-    audioLock sync.Mutex
-    audioBuffer []float32
-    audioBufferIndex int
-    */
-
     AudioStream *AudioStream
 }
 
@@ -559,19 +553,18 @@ type AudioStream struct {
 func (stream *AudioStream) AddSample(left float32, right float32) {
     stream.lock.Lock()
 
-    stream.Samples[stream.end] = left
-    stream.end = (stream.end + 1) % len(stream.Samples)
-    stream.Samples[stream.end] = right
-    stream.end = (stream.end + 1) % len(stream.Samples)
-
-    stream.count += 2
+    if stream.count < len(stream.Samples) {
+        stream.Samples[stream.end] = left
+        stream.end = (stream.end + 1) % len(stream.Samples)
+        stream.Samples[stream.end] = right
+        stream.end = (stream.end + 1) % len(stream.Samples)
+        stream.count += 2
+    }
 
     stream.lock.Unlock()
 }
 
 func (stream *AudioStream) Read(data []byte) (int, error) {
-    // floatData := stream.APU.GetAudioBuffer(len(data) / 4 / 2)
-
     stream.lock.Lock()
     defer stream.lock.Unlock()
 
@@ -588,65 +581,12 @@ func (stream *AudioStream) Read(data []byte) (int, error) {
 
     stream.count -= samples
 
-    /*
-    for i := range len(floatData) {
-        v := math.Float32bits(floatData[i])
-        data[i*4+0] = byte(v)
-        data[i*4+1] = byte(v >> 8)
-        data[i*4+2] = byte(v >> 16)
-        data[i*4+3] = byte(v >> 24)
-    }
-
-    stream.APU.ReleaseAudioBuffer(floatData)
-    */
-
-    // log.Printf("Read %v audio bytes out of %v bytes", len(floatData) * 4, len(data))
-
     return len(data), nil
 }
 
 func (apu *APU) GetAudioStream() *AudioStream {
     return apu.AudioStream
-    /*
-    return &AudioStream{
-        APU: apu,
-        Samples: make([]float32, 0, 44100 * 2), // 1 second of audio, 2 channels
-    }
-    */
 }
-
-// samples is the number of samples in one channel
-/*
-func (apu *APU) GetAudioBuffer(samples int) []float32 {
-    apu.audioLock.Lock()
-    if len(apu.audioBuffer) != samples * 2 * 2 {
-        apu.audioBuffer = make([]float32, samples * 2 * 2)
-    }
-    // log.Printf("audio buffer index %v: %v bytes", apu.audioBufferIndex, apu.audioBufferIndex * 4)
-    // return apu.audioBuffer[:apu.audioBufferIndex]
-    return apu.audioBuffer[:samples * 2]
-}
-*/
-
-/*
-func (apu *APU) ReleaseAudioBuffer(buffer []float32) {
-
-    middle := len(apu.audioBuffer) / 2
-    if apu.audioBufferIndex >= len(buffer) {
-        log.Printf("left over samples: %v", apu.audioBufferIndex - len(buffer))
-    }
-
-    for i := middle; i < apu.audioBufferIndex; i++ {
-        apu.audioBuffer[i-middle] = apu.audioBuffer[i]
-    }
-    for i := middle; i < len(apu.audioBuffer); i++ {
-        apu.audioBuffer[i] = 0
-    }
-
-    apu.audioBufferIndex = 0
-    apu.audioLock.Unlock()
-}
-*/
 
 func (apu *APU) SetNoiseLength(value uint8) {
     length := value & 0b111_111
@@ -951,19 +891,6 @@ func (apu *APU) Run(cycles uint64) {
             apu.SampleCounter += float32(CPUSpeed) / float32(apu.SampleRate)
 
             apu.AudioStream.AddSample(apu.GenerateLeftSample(), apu.GenerateRightSample())
-
-            /*
-            apu.audioLock.Lock()
-            if apu.audioBufferIndex < len(apu.audioBuffer) - 1 {
-                apu.audioBuffer[apu.audioBufferIndex] = apu.GenerateLeftSample()
-                apu.audioBufferIndex += 1
-                apu.audioBuffer[apu.audioBufferIndex] = apu.GenerateRightSample()
-                apu.audioBufferIndex += 1
-            } else {
-                // log.Printf("drop audio sample")
-            }
-            apu.audioLock.Unlock()
-            */
         }
     }
 }
