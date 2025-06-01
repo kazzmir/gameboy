@@ -84,6 +84,13 @@ func (engine *Engine) runEmulator(cycles int64) error {
                 return RestartError
             case ebiten.KeyP:
                 engine.paused = !engine.paused
+                if engine.audioPlayer != nil {
+                    if engine.paused {
+                        engine.audioPlayer.Pause()
+                    } else {
+                        engine.audioPlayer.Play()
+                    }
+                }
         }
     }
 
@@ -167,7 +174,14 @@ func (engine *Engine) maybeLoadDropped() error {
                 }
                 defer file.Close()
 
-                makeCpu, err := loadGameboy(file, engine.Cpu.Debug, engine.Cpu.PPU.Debug)
+                cpuDebug := false
+                ppuDebug := false
+                if engine.Cpu != nil {
+                    cpuDebug = engine.Cpu.Debug
+                    ppuDebug = engine.Cpu.PPU.Debug
+                }
+
+                makeCpu, err := loadGameboy(file, cpuDebug, ppuDebug)
                 if err != nil {
                     log.Printf("Error loading gameboy file: %v: %v", entry.Name(), err)
                 } else {
@@ -203,32 +217,34 @@ func (engine *Engine) Update() error {
         }
     }
 
-    err = engine.runEmulator(core.CPUSpeed / engine.rate)
+    if engine.Cpu != nil {
+        err = engine.runEmulator(core.CPUSpeed / engine.rate)
 
-    if errors.Is(err, RestartError) {
-        cpu, err := engine.MakeCpu()
-        if err != nil {
-            return err
+        if errors.Is(err, RestartError) {
+            cpu, err := engine.MakeCpu()
+            if err != nil {
+                return err
+            }
+            if engine.audioPlayer != nil {
+                engine.audioPlayer.Close()
+            }
+            engine.audioPlayer = nil
+            engine.Cpu = cpu
+
+            return nil
         }
-        if engine.audioPlayer != nil {
-            engine.audioPlayer.Close()
-        }
-        engine.audioPlayer = nil
-        engine.Cpu = cpu
 
-        return nil
-    }
-
-    if engine.audioPlayer == nil {
-        player, err := engine.audioContext.NewPlayerF32(engine.Cpu.APU.GetAudioStream())
-        if err != nil {
-            log.Printf("Error creating audio player: %v", err)
-        } else {
-            engine.audioPlayer = player
-            engine.audioPlayer.SetVolume(0.5)
-            engine.audioPlayer.SetBufferSize(time.Second / 10)
-            // engine.audioPlayer.SetBufferSize(time.Second)
-            engine.audioPlayer.Play()
+        if engine.audioPlayer == nil {
+            player, err := engine.audioContext.NewPlayerF32(engine.Cpu.APU.GetAudioStream())
+            if err != nil {
+                log.Printf("Error creating audio player: %v", err)
+            } else {
+                engine.audioPlayer = player
+                engine.audioPlayer.SetVolume(0.5)
+                engine.audioPlayer.SetBufferSize(time.Second / 10)
+                // engine.audioPlayer.SetBufferSize(time.Second)
+                engine.audioPlayer.Play()
+            }
         }
     }
 
@@ -236,6 +252,10 @@ func (engine *Engine) Update() error {
 }
 
 func (engine *Engine) Draw(screen *ebiten.Image) {
+    if engine.Cpu == nil {
+        ebitenutil.DebugPrint(screen, "Drag and drop\na gameboy file to start")
+    }
+
     if !engine.needDraw {
         return
     }
@@ -326,15 +346,17 @@ func main(){
         path = os.Args[i]
     }
 
-    if path == "" {
-        log.Printf("Usage: gameboy /path/to/rom")
-        return
+    makeCpu := func() (*core.CPU, error) {
+        return nil, nil
     }
 
-    makeCpu, err := loadGameboyFromPath(path, *cpuDebug, *ppuDebug)
-    if err != nil {
-        log.Printf("Error: %v", err)
-        return
+    if path != "" {
+        var err error
+        makeCpu, err = loadGameboyFromPath(path, *cpuDebug, *ppuDebug)
+        if err != nil {
+            log.Printf("Error: %v", err)
+            return
+        }
     }
     // cpu.PC = 0x100
 
