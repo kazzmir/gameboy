@@ -254,6 +254,7 @@ func (engine *Engine) Update() error {
 func (engine *Engine) Draw(screen *ebiten.Image) {
     if engine.Cpu == nil {
         ebitenutil.DebugPrint(screen, "Drag and drop\na gameboy file to start")
+        ebitenutil.DebugPrintAt(screen, "Jon Rafkind", screen.Bounds().Dx()-70, screen.Bounds().Dy()-18)
     }
 
     if !engine.needDraw {
