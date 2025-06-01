@@ -844,6 +844,10 @@ func (cpu *CPU) LoadMemory8(address uint16) uint8 {
             return cpu.PPU.WindowY
         case address == IOWindowX:
             return cpu.PPU.WindowX
+        case address == IOViewPortY:
+            return cpu.PPU.ViewPortY
+        case address == IOViewPortX:
+            return cpu.PPU.ViewPortX
         case address == IOTimerCounter:
             return cpu.Timer
         case address == IOTimerDivider:
