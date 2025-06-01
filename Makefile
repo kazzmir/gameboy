@@ -1,4 +1,4 @@
-.PHONY: gameboy
+.PHONY: gameboy gameboy.wasm
 
 all: gameboy
 
