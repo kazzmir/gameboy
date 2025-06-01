@@ -179,7 +179,7 @@ func (engine *Engine) Update() error {
         } else {
             engine.audioPlayer = player
             engine.audioPlayer.SetVolume(0.5)
-            engine.audioPlayer.SetBufferSize(time.Second / 5)
+            engine.audioPlayer.SetBufferSize(time.Second / 10)
             // engine.audioPlayer.SetBufferSize(time.Second)
             engine.audioPlayer.Play()
         }
