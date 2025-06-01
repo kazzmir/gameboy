@@ -559,6 +559,8 @@ func (stream *AudioStream) AddSample(left float32, right float32) {
         stream.Samples[stream.end] = right
         stream.end = (stream.end + 1) % len(stream.Samples)
         stream.count += 2
+    } else {
+        // log.Printf("dropping a sample")
     }
 
     stream.lock.Unlock()
@@ -569,6 +571,7 @@ func (stream *AudioStream) Read(data []byte) (int, error) {
     defer stream.lock.Unlock()
 
     samples := min(stream.count, len(data) / 4)
+    // log.Printf("audio stream read %v samples out of %v", samples, len(data) / 4)
     for i := range samples {
         v := math.Float32bits(stream.Samples[stream.start])
         data[i*4+0] = byte(v)
