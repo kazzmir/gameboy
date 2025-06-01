@@ -124,17 +124,19 @@ type CPU struct {
     HighRam []uint8
 
     PPU *PPU
+    APU *APU
     MBC MBC
 
     Debug bool
     Error bool
 }
 
-func MakeCPU(mbc MBC) *CPU {
+func MakeCPU(mbc MBC, audioSampleRate uint32) *CPU {
     return &CPU{
         Ram: make([]uint8, 0x2000),
         HighRam: make([]uint8, 0xfffe - 0xff80 + 1),
         PPU: MakePPU(),
+        APU: MakeAPU(audioSampleRate),
         MBC: mbc,
     }
 }
@@ -162,7 +164,12 @@ func (cpu *CPU) InitializeDMG() {
     cpu.StoreMemory(IOInterrupt, 0xe1)
     cpu.StoreMemory(IOSoundChannel1Sweep, 0x80)
     cpu.StoreMemory(IOSoundChannel1Duty, 0xbf)
-    cpu.StoreMemory(IOSoundChannel1Volume, 0xf3)
+
+    // FIXME: pulse1 turns on too early, not sure why but for now
+    // just set the volume to 0
+    // cpu.StoreMemory(IOSoundChannel1Volume, 0xf3)
+    cpu.StoreMemory(IOSoundChannel1Volume, 0)
+
     cpu.StoreMemory(IOSoundChannel1PeriodLow, 0xff)
     cpu.StoreMemory(IOSoundChannel1PeriodHigh, 0xbf)
     cpu.StoreMemory(IOSoundChannel2Duty, 0x3f)
@@ -174,9 +181,9 @@ func (cpu *CPU) InitializeDMG() {
     cpu.StoreMemory(IOSoundChannel3Volume, 0x9f)
     cpu.StoreMemory(IOSoundChannel3PeriodLow, 0xff)
     cpu.StoreMemory(IOSoundChannel3PeriodHigh, 0xbf)
-    cpu.StoreMemory(0xff20, 0xff)
+    cpu.StoreMemory(IOSoundChannel4Length, 0xff)
     cpu.StoreMemory(IOSoundChannel4Volume, 0x00)
-    cpu.StoreMemory(0xff22, 0x00)
+    cpu.StoreMemory(IOSoundChannel4Frequency, 0x00)
     cpu.StoreMemory(IOSoundChannel4Control, 0xbf)
     cpu.StoreMemory(IOMasterVolume, 0x77)
     cpu.StoreMemory(IOSoundPanning, 0xf3)
@@ -688,55 +695,55 @@ func (cpu *CPU) StoreMemory(address uint16, value uint8) {
         case address == IOViewPortX:
             cpu.PPU.ViewPortX = value
         case address >= IOWaveFormStart && address <= IOWaveFormEnd:
-            // FIXME: implement with APU
+            index := int(address - IOWaveFormStart)
+            cpu.APU.SetWavePattern(value, index)
         case address == IOJoypad:
             buttons := value & 0b100000
             dpad := value & 0b10000
             cpu.Joypad.SetButtons(buttons == 0)
             cpu.Joypad.SetDpad(dpad == 0)
         case address == IOSoundChannel1Sweep:
-            // FIXME: implement with APU
+            cpu.APU.SetPulse1Sweep(value)
         case address == IOSoundChannel1Volume:
-            // FIXME: implement with APU
+            cpu.APU.SetPulse1Volume(value)
         case address == IOSoundChannel1PeriodHigh:
-            // FIXME: implement with APU
-        case address == IOSoundChannel1Duty:
-            // FIXME: implement with APU
+            cpu.APU.SetPulse1PeriodHigh(value)
         case address == IOSoundChannel1PeriodLow:
-            // FIXME: implement with APU
+            cpu.APU.SetPulse1PeriodLow(value)
+        case address == IOSoundChannel1Duty:
+            cpu.APU.SetPulse1Duty(value)
         case address == IOSoundChannel2Duty:
-            // FIXME: implement with APU
+            cpu.APU.SetPulse2Duty(value)
         case address == IOSoundChannel2Volume:
-            // FIXME: implement with APU
+            cpu.APU.SetPulse2Volume(value)
         case address == IOSoundChannel2PeriodLow:
-            // FIXME: implement with APU
+            cpu.APU.SetPulse2PeriodLow(value)
         case address == IOSoundChannel2PeriodHigh:
-            // FIXME: implement with APU
+            cpu.APU.SetPulse2PeriodHigh(value)
         case address == IOSoundChannel3Length:
-            // FIXME: implement with APU
+            cpu.APU.SetWaveLength(value)
         case address == IOSoundChannel3DAC:
-            // FIXME: implement with APU
+            cpu.APU.SetWaveDAC(value)
         case address == IOSoundChannel3Volume:
-            // FIXME: implement with APU
+            cpu.APU.SetWaveVolume(value)
         case address == IOSoundChannel3PeriodLow:
-            // FIXME: implement with APU
+            cpu.APU.SetWavePeriodLow(value)
         case address == IOSoundChannel3PeriodHigh:
-            // FIXME: implement with APU
+            cpu.APU.SetWavePeriodHigh(value)
         case address == IOSoundChannel4Volume:
-            // FIXME: implement with APU
+            cpu.APU.SetNoiseVolume(value)
         case address == IOSoundChannel4Control:
-            // FIXME: implement with APU
+            cpu.APU.SetNoiseControl(value)
         case address == IOSoundChannel4Length:
-            // FIXME: implement with APU
+            cpu.APU.SetNoiseLength(value)
         case address == IOSoundChannel4Frequency:
-            // FIXME: implement with APU
+            cpu.APU.SetNoiseFrequency(value)
         case address == IOMasterVolume:
-            // FIXME: implement with APU
+            cpu.APU.SetMasterVolume(value)
         case address == IOSoundPanning:
-            // FIXME: implement with APU
+            cpu.APU.SetPanning(value)
         case address == IOSoundOnOff:
-            // FIXME: implement with APU
-            // ignore for now
+            cpu.APU.SetMasterEnabled(value & 0b1000_0000 > 0)
         case address == IOSerialTransferData:
             // ignore for now
         case address == IOSerialTransferControl:
@@ -846,21 +853,21 @@ func (cpu *CPU) LoadMemory8(address uint16) uint8 {
             return cpu.PPU.ObjPalette1
         case address == IOJoypad:
             return cpu.Joypad.GetValue()
+        case address == IOSoundChannel1Sweep:
+            // FIXME: get from apu
+            return 0
         case address == IOSoundChannel1Duty:
             // FIXME: need apu
             return 0
         case address == IOMasterVolume:
-            // FIXME: need apu
-            return 0
+            return cpu.APU.GetMasterVolume()
         case address == IOSoundChannel3DAC:
             // FIXME: need apu
             return 0
         case address == IOSoundPanning:
-            // FIXME: need apu
-            return 0
+            return cpu.APU.ReadSoundPanning()
         case address == IOSoundOnOff:
-            // FIXME: need apu
-            return 0
+            return cpu.APU.ReadMasterControl()
         case address == IOLCDY:
             return cpu.PPU.LCDY
     }
