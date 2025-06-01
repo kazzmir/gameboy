@@ -855,6 +855,8 @@ func (cpu *CPU) LoadMemory8(address uint16) uint8 {
             return cpu.PPU.ObjPalette1
         case address == IOJoypad:
             return cpu.Joypad.GetValue()
+        case address == IOPalette:
+            return cpu.PPU.Palette
         case address == IOSoundChannel1Sweep:
             // log.Printf("Warning: read IOSoundChannel1Sweep at 0x%x", address)
             return cpu.APU.ReadPulse1Sweep()
