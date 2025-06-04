@@ -245,10 +245,17 @@ func (mbc2 *MBC2) Read(address uint16) uint8 {
 func (mbc2 *MBC2) Write(address uint16, value uint8) {
     switch {
         case address < 0x4000:
-            if value & 0b1111 == 0xa {
-                mbc2.ramEnable = true
+            if address & 0b1_0000_0000 != 0 {
+                mbc2.romBank = value & 0b0000_1111
+                if mbc2.romBank == 0 {
+                    mbc2.romBank = 1
+                }
             } else {
-                mbc2.ramEnable = false
+                if value & 0b1111 == 0xa {
+                    mbc2.ramEnable = true
+                } else {
+                    mbc2.ramEnable = false
+                }
             }
         case address >= 0xa000 && address < 0xc000:
             if mbc2.ramEnable {
@@ -290,6 +297,7 @@ func MakeMBC(mbcType uint8, rom []uint8) (MBC, error) {
             return &MBC2{
                 rom: rom,
                 ram: make([]uint8, 512), // MBC2 has 512 bytes of RAM
+                romBank: 1,
             }, nil
         default:
             return nil, fmt.Errorf("Unknown MBC type")
